@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ממשק החבילות 2.2 - סנכרון סניפים</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: #f1f5f9;
+            margin: 0; padding: 0;
+            user-select: none;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s;
+        }
+
+        #app {
+            background-color: white;
+            width: 100%;
+            max-width: 450px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        @media (min-height: 700px) {
+            #app { height: 850px; max-height: 95vh; border-radius: 2.5rem; }
+        }
+
+        #app.dark { background-color: #0f172a; color: #f8fafc; }
+        #app.dark .bg-white { background-color: #0f172a; }
+        #app.dark .bg-slate-50 { background-color: #1e293b; }
+        #app.dark .bg-slate-100 { background-color: #334155; }
+        #app.dark .bg-blue-50 { background-color: #1e293b; border-color: #334155; }
+        #app.dark .border-slate-100, #app.dark .border-slate-200, #app.dark .border-blue-100 { border-color: #334155; }
+        #app.dark .text-slate-800, #app.dark .text-gray-900 { color: #f8fafc; }
+        #app.dark .text-slate-600 { color: #cbd5e1; }
+        #app.dark .text-slate-400 { color: #94a3b8; }
+
+        .active-option {
+            background-color: #2563eb !important; color: white !important;
+            border-color: #1e40af !important; transform: translateY(-4px) !important;
+            box-shadow: 0 12px 20px -5px rgba(37, 99, 235, 0.4) !important;
+        }
+
+        .recent-card { 
+            width: 110px; height: 110px; flex-shrink: 0;
+            background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+        }
+        #app.dark .recent-card { background-color: #1e293b; border-color: #334155; }
+        .recent-card:active { transform: scale(0.92); }
+
+        .keypad-btn { 
+            background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; height: 52px; font-size: 1.4rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.1s;
+        }
+        #app.dark .keypad-btn { background-color: #1e293b; border-color: #475569; color: #ffffff; }
+        .keypad-btn:active { background-color: #f1f5f9; transform: scale(0.95); }
+        #app.dark .keypad-btn:active { background-color: #334155; }
+
+        .keypad-action { background-color: #f8fafc; color: #64748b; }
+        #app.dark .keypad-action { background-color: #0f172a; color: #94a3b8; border-color: #334155; }
+
+        #status-screen {
+            position: absolute; inset: 0; background: #ffffff; z-index: 5000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
+        #app.dark #status-screen { background: #0f172a; }
+
+        .progress-container {
+            width: 80%; max-width: 280px; height: 8px;
+            background-color: #f1f5f9; border-radius: 99px;
+            overflow: hidden; margin-bottom: 1rem;
+        }
+        #app.dark .progress-container { background-color: #1e293b; }
+
+        .progress-bar-fill {
+            height: 100%; width: 0%;
+            background-color: #32CD32;
+            box-shadow: 0 0 10px rgba(50, 205, 50, 0.5);
+            border-radius: 99px;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* נקודת סנכרון */
+        .sync-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            display: inline-block; transition: all 0.3s;
+        }
+        .syncing { background-color: #fbbf24; animation: pulse 1s infinite; box-shadow: 0 0 8px #fbbf24; }
+        .synced { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        #loading-logo { max-width: 140px; max-height: 140px; object-fit: contain; margin-bottom: 1rem; display: none; }
+
+        #modal-overlay, #duplicate-modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); z-index: 6000;
+            align-items: center; justify-content: center;
+        }
+        .modal-bg { background-color: #ffffff; border-radius: 2.5rem; padding: 2rem; width: 85%; max-width: 320px; text-align: center; }
+        #app.dark .modal-bg { background-color: #1e293b; }
+
+        .recent-scroll-container { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; scroll-snap-type: x mandatory; }
+        .recent-scroll-container::-webkit-scrollbar { display: none; }
+
+        .branch-btn {
+            width: 100%; padding: 2rem 1rem; border-radius: 1.5rem; border: 2px solid #e2e8f0;
+            background: white; text-align: center; transition: all 0.3s;
+        }
+        #app.dark .branch-btn { background: #1e293b; border-color: #334155; }
+        .branch-btn:active { transform: scale(0.95); border-color: #2563eb; }
+
+        .badge-epost { background-color: #fee2e2 !important; color: #dc2626 !important; border: 1px solid #fecaca; }
+        .badge-hfd { background-color: #dbeafe !important; color: #2563eb !important; border: 1px solid #bfdbfe; }
+        .badge-distribution { background-color: #dcfce7 !important; color: #166534 !important; border: 1px solid #bbf7d0; }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <!-- מסך טעינה קבוע -->
+        <div id="status-screen">
+            <div class="flex flex-col items-center w-full">
+                <img id="loading-logo" src="" alt="Logo">
+                <h1 class="text-2xl font-black text-slate-800 dark:text-white mb-8 tracking-tight italic">ממשק החבילות 2.2</h1>
+                <div class="progress-container">
+                    <div id="progress-bar" class="progress-bar-fill"></div>
+                </div>
+                <p id="status-text-display" class="text-xs font-bold text-slate-400 uppercase tracking-widest">מאתחל מערכת...</p>
+            </div>
+        </div>
+
+        <!-- מכולה לרינדור דינמי -->
+        <div id="main-content" class="flex flex-col h-full overflow-hidden"></div>
+    </div>
+
+    <!-- מודאל פעולות -->
+    <div id="modal-overlay" onclick="window.closeActionModal()">
+        <div class="modal-bg" onclick="event.stopPropagation()">
+            <h3 class="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest leading-none">ניהול חבילה</h3>
+            <p id="m-loc-text" class="font-extrabold text-xs mb-1 uppercase"></p>
+            <p id="m-id-text" class="text-6xl font-black text-gray-900 dark:text-white mb-8 tracking-tighter leading-none"></p>
+            <div class="flex flex-col gap-3">
+                <button id="m-collect-btn" class="w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 text-xl">נאסף (מחיקה)</button>
+                <button onclick="window.closeActionModal()" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-2xl active:scale-95">חזור</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- מודאל כפילויות -->
+    <div id="duplicate-modal-overlay">
+        <div class="modal-bg">
+            <div class="w-16 h-16 bg-amber-50 dark:bg-amber-900/30 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <h3 class="text-lg font-black text-slate-800 dark:text-white mb-2">חבילה כפולה</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">האם להוסיף כפילות עם סיומת W?</p>
+            <div class="flex flex-col gap-3">
+                <button id="confirm-duplicate-btn" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg active:scale-95 text-lg">כן, הוסף W</button>
+                <button onclick="window.closeDuplicateModal()" class="w-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3 rounded-xl active:scale-95">לא, בטל</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // הגדרות גלובליות
+        window.SHEET_URL = "https://script.google.com/macros/s/AKfycbxTuVPyc62I4xwJojmfWr92z7OLBXM6HSDA4yv6MvPhwnm1II6EsPmt-MV-1BbVXJJA/exec";
+        
+        window.state = {
+            allPackages: [],
+            currentBranch: null, 
+            currentMode: 2, 
+            currentView: 'branch_select', 
+            isDarkMode: false,
+            typingValue: '',
+            searchResults: null,
+            selectedOption: null,
+            isSyncing: false
+        };
+
+        const shelves = ["A", "B", "C", "D", "E", "F", "G", "H"];
+        const logistics = ["Epost", "בר הפצה", "HFD"];
+
+        // --- לוגיקת טעינה ---
+
+        async function loadData(silent = false) {
+            const bar = document.getElementById('progress-bar');
+            const txt = document.getElementById('status-text-display');
+            
+            if(!silent) {
+                if(bar) bar.style.width = '30%';
+                if(txt) txt.innerText = "מתחבר לשרת...";
+            }
+            
+            window.state.isSyncing = true;
+            if(window.state.currentView === 'home') window.render(); // רענון הדוט לצהוב
+
+            try {
+                if(!silent && txt) txt.innerText = "מושך נתונים...";
+                const response = await fetch(`${window.SHEET_URL}?nocache=${Date.now()}`, { method: 'GET', redirect: 'follow' });
+                const data = await response.json();
+                
+                if (Array.isArray(data)) {
+                    window.state.allPackages = data.map(p => ({
+                        id: (p.id || p.ID || '').toString(),
+                        location: (p.location || p.LOCATION || '').toString(),
+                        mode: (p.mode || p.MODE || '').toString(),
+                        branch: (p.branch || p.BRANCH || 'רמתיים').toString()
+                    }));
+                    
+                    if (data.length > 0 && !silent) {
+                        const logoUrl = data[0].logo || data[0].LOGO || '';
+                        const imgEl = document.getElementById('loading-logo');
+                        if (logoUrl && imgEl) {
+                            imgEl.src = logoUrl;
+                            imgEl.onload = () => imgEl.style.display = 'block';
+                        }
+                    }
+                }
+                
+                window.state.isSyncing = false;
+                if (!silent) {
+                    if(bar) bar.style.width = '100%';
+                    if(txt) txt.innerText = "המערכת מוכנה!";
+                    setTimeout(() => {
+                        const loader = document.getElementById('status-screen');
+                        if (loader) loader.style.display = 'none';
+                        window.render();
+                    }, 800);
+                } else {
+                    window.render(); // רענון הדוט לירוק
+                }
+            } catch (e) {
+                window.state.isSyncing = false;
+                if (!silent && txt) txt.innerText = "שגיאת חיבור";
+                if(window.state.currentView === 'home') window.render();
+            }
+        }
+
+        setInterval(() => loadData(true), 10000);
+
+        async function syncUpdateOptimistic(action, pkgData) {
+            window.state.isSyncing = true;
+            const fullPkg = { ...pkgData, branch: window.state.currentBranch, createdAt: Date.now() };
+            if (action === 'add') window.state.allPackages.push(fullPkg);
+            else if (action === 'delete') {
+                window.state.allPackages = window.state.allPackages.filter(p => !(p.id === pkgData.id && p.location === pkgData.location && p.branch === window.state.currentBranch));
+            }
+            window.render();
+            try {
+                fetch(window.SHEET_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action, ...fullPkg }) })
+                .then(() => setTimeout(() => loadData(true), 1500));
+            } catch (e) { window.state.isSyncing = false; window.render(); }
+        }
+
+        // --- לוגיקת רינדור ---
+
+        window.render = function() {
+            const container = document.getElementById('main-content');
+            if (!container) return;
+
+            const scrollContainer = container.querySelector('.recent-scroll-container');
+            const savedScrollPos = scrollContainer ? scrollContainer.scrollLeft : 0;
+
+            if (window.state.currentView === 'branch_select') renderBranchSelect(container);
+            else if (window.state.currentView === 'home') renderHome(container);
+            else renderAdd(container);
+
+            const newScroll = container.querySelector('.recent-scroll-container');
+            if (newScroll) newScroll.scrollLeft = savedScrollPos;
+        }
+
+        function renderBranchSelect(container) {
+            container.innerHTML = `
+                <div class="flex flex-col h-full p-8 items-center justify-center bg-white dark:bg-slate-900">
+                    <h2 class="text-3xl font-black mb-10 italic text-slate-800 dark:text-white">בחר סניף לעבודה</h2>
+                    <div class="w-full space-y-4">
+                        <button onclick="window.selectBranch('רמתיים')" class="branch-btn shadow-lg group active:scale-95 transition-all">
+                            <span class="text-3xl block mb-2">🏡</span><span class="text-xl font-black text-slate-800 dark:text-white">סניף רמתיים</span>
+                        </button>
+                        <button onclick="window.selectBranch('סוקולוב')" class="branch-btn shadow-lg group active:scale-95 transition-all">
+                            <span class="text-3xl block mb-2">🏢</span><span class="text-xl font-black text-slate-800 dark:text-white">סניף סוקולוב</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHome(container) {
+            const data = window.state.allPackages.filter(p => p.mode === window.state.currentMode.toString() && p.branch === window.state.currentBranch);
+            const recent = [...data].reverse().slice(0, 15);
+
+            container.innerHTML = `
+                <div class="flex flex-col h-full overflow-hidden">
+                    <div class="p-4 flex justify-between items-center shrink-0">
+                        <button onclick="window.toggleDarkMode()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xl">${window.state.isDarkMode ? '☀️' : '🌙'}</button>
+                        
+                        <div class="bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 px-5 py-1.5 rounded-2xl text-center shadow-sm flex items-center justify-center gap-2">
+                            <span class="sync-dot ${window.state.isSyncing ? 'syncing' : 'synced'}"></span>
+                            <div>
+                                <p class="text-[9px] font-bold text-slate-400 uppercase leading-none">${window.state.currentBranch}</p>
+                                <p class="font-extrabold text-[11px] mt-0.5">${window.state.currentMode === 1 ? 'אותיות מדף' : 'לוגיסטיקה'}</p>
+                            </div>
+                        </div>
+                        
+                        <button onclick="window.toggleMode()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-[11px] font-bold active:scale-95">החלף</button>
+                    </div>
+
+                    <div class="px-5 pb-2 shrink-0 mt-2">
+                        <button onclick="window.setView('add')" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl italic transition-transform">➕ הוספת חבילה ב${window.state.currentBranch}</button>
+                    </div>
+
+                    <div class="px-5 py-3 shrink-0 overflow-hidden text-right">
+                        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase text-xs">אחרונות בסניף:</p>
+                        <div class="recent-scroll-container">
+                            ${recent.length > 0 ? recent.map(p => {
+                                let cls = (p.location === 'Epost') ? 'badge-epost' : (p.location === 'בר הפצה') ? 'badge-distribution' : 'badge-hfd';
+                                return `<div onclick="window.openActionModal('${p.id}', '${p.location}')" class="recent-card shadow-md">
+                                    <span class="text-2xl font-black text-slate-800 dark:text-white leading-none">${p.id}</span>
+                                    <span class="text-[9px] font-bold ${cls} px-2 py-0.5 rounded-full mt-2 uppercase truncate w-[85%] text-center italic">${p.location}</span>
+                                </div>`;
+                            }).join('') : '<div class="w-full py-8 text-center text-slate-300 italic border border-dashed rounded-xl">אין חבילות</div>'}
+                        </div>
+                    </div>
+
+                    <div class="mt-auto bg-slate-50 dark:bg-slate-800/50 p-5 rounded-t-[2.5rem] border-t dark:border-slate-700 shadow-inner">
+                        <div id="results-area" class="empty:hidden mb-3 max-h-24 overflow-y-auto space-y-2">
+                            ${window.state.searchResults ? window.state.searchResults.map(p => `<div class="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-2xl shadow-sm"><div class="text-right"><p class="font-black text-lg">${p.id}</p><p class="text-[9px] font-bold text-blue-500 uppercase">${p.location}</p></div><button onclick="window.deletePackage('${p.id}', '${p.location}')" class="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold active:scale-95">נאסף</button></div>`).join('') : ''}
+                        </div>
+                        <div class="flex gap-2 mb-4">
+                            <div class="flex-1 bg-white dark:bg-slate-900 border-2 dark:border-slate-700 rounded-2xl h-14 flex items-center justify-center">
+                                <span class="${window.state.typingValue ? 'text-3xl font-black text-slate-800 dark:text-white' : 'text-slate-300 text-sm'}">${window.state.typingValue || 'חפש חבילה...'}</span>
+                            </div>
+                            <button onclick="window.handleSearch()" class="bg-blue-600 text-white px-8 h-14 rounded-2xl font-bold active:scale-95 shadow-md">חיפוש</button>
+                        </div>
+                        ${renderKeypadHtml()}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdd(container) {
+            const opts = window.state.currentMode === 1 ? shelves : logistics;
+            const gridClass = window.state.currentMode === 1 ? 'grid-cols-4' : 'grid-cols-3';
+            
+            container.innerHTML = `
+                <div class="flex flex-col h-full p-6 bg-white dark:bg-slate-900">
+                    <button onclick="window.setView('home')" class="self-start p-3 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 text-xl">🔙</button>
+                    
+                    <div class="bg-blue-50 dark:bg-slate-800 border-2 border-blue-100 dark:border-slate-700 rounded-[2rem] p-4 text-center mb-6 shadow-sm">
+                        <p class="text-[10px] font-bold text-blue-400 uppercase mb-1 leading-none">מספר חבילה</p>
+                        <p class="text-6xl font-black text-blue-700 dark:text-blue-400 min-h-[60px] tracking-tighter leading-none">${window.state.typingValue || '----'}</p>
+                    </div>
+                    
+                    <div class="mb-6 relative z-[100]">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-2 text-right">מיקום אחסון:</p>
+                        <div class="grid ${gridClass} gap-2">
+                            ${opts.map(o => `<button onclick="window.setOption('${o}')" class="option-btn border-2 py-4 rounded-2xl text-[13px] font-bold ${window.state.selectedOption === o ? 'active-option' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600'}">${o}</button>`).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-3xl p-4 mb-4 shadow-inner">
+                        ${renderKeypadHtml()}
+                    </div>
+                    
+                    <button onclick="window.savePackage()" class="mt-auto w-full bg-blue-600 text-white font-black py-5 rounded-2xl text-xl shadow-xl italic active:scale-95 transition-all">שמירה ב${window.state.currentBranch}</button>
+                </div>
+            `;
+        }
+
+        function renderKeypadHtml() {
+            return `
+                <div class="grid grid-cols-3 gap-2">
+                    ${[1,2,3,4,5,6,7,8,9].map(n => `<button onclick="window.typeKey('${n}')" class="keypad-btn shadow-sm">${n}</button>`).join('')}
+                    <button onclick="window.clearKey()" class="keypad-btn bg-slate-100 dark:bg-slate-700 text-xs font-bold shadow-sm">C</button>
+                    <button onclick="window.typeKey('0')" class="keypad-btn shadow-sm">0</button>
+                    <button onclick="window.backKey()" class="keypad-btn bg-slate-100 dark:bg-slate-700 text-xl font-bold shadow-sm">🔙</button>
+                </div>
+            `;
+        }
+
+        // --- פעולות גלובליות ---
+
+        window.selectBranch = (b) => { 
+            window.state.currentBranch = b; 
+            window.state.currentView = 'home'; 
+            const loader = document.getElementById('status-screen');
+            if (loader) loader.style.display = 'none'; 
+            window.render(); 
+        };
+
+        window.toggleDarkMode = () => { 
+            window.state.isDarkMode = !window.state.isDarkMode; 
+            document.getElementById('app').classList.toggle('dark', window.state.isDarkMode); 
+            window.render(); 
+        };
+
+        window.toggleMode = () => { window.state.currentMode = window.state.currentMode === 1 ? 2 : 1; window.state.typingValue = ''; window.state.searchResults = null; window.render(); };
+        window.setView = (v) => { window.state.currentView = v; window.state.typingValue = ''; window.state.searchResults = null; window.state.selectedOption = null; window.render(); };
+        window.setOption = (opt) => { window.state.selectedOption = opt; window.render(); };
+        
+        window.typeKey = (k) => { 
+            if(window.state.typingValue.length < 4) { 
+                window.state.typingValue += k; 
+                if(window.state.currentView === 'home') window.state.searchResults = null; 
+                window.render(); 
+            } 
+        };
+        
+        window.clearKey = () => { window.state.typingValue = ''; if(window.state.currentView==='home') window.state.searchResults=null; window.render(); };
+        window.backKey = () => { window.state.typingValue = window.state.typingValue.slice(0, -1); window.render(); };
+
+        window.savePackage = () => {
+            if (window.state.typingValue.length < 2 || !window.state.selectedOption) return;
+            const isDuplicate = window.state.allPackages.some(p => p.id === window.state.typingValue && p.location === window.state.selectedOption && p.branch === window.state.currentBranch);
+            if (isDuplicate) {
+                const dm = document.getElementById('duplicate-modal-overlay');
+                if(dm) dm.style.display = 'flex';
+                document.getElementById('confirm-duplicate-btn').onclick = window.confirmDuplicate;
+                return;
+            }
+            syncUpdateOptimistic('add', { id: window.state.typingValue, location: window.state.selectedOption, mode: window.state.currentMode });
+            window.setView('home');
+        };
+
+        window.confirmDuplicate = () => {
+            syncUpdateOptimistic('add', { id: window.state.typingValue + "W", location: window.state.selectedOption, mode: window.state.currentMode });
+            const dm = document.getElementById('duplicate-modal-overlay');
+            if(dm) dm.style.display = 'none';
+            window.setView('home');
+        };
+
+        window.closeDuplicateModal = () => {
+            const dm = document.getElementById('duplicate-modal-overlay');
+            if(dm) dm.style.display = 'none';
+        };
+
+        window.handleSearch = () => {
+            if (!window.state.typingValue) return;
+            window.state.searchResults = window.state.allPackages.filter(p => p.id === window.state.typingValue && p.branch === window.state.currentBranch);
+            window.render();
+        };
+
+        window.deletePackage = (id, loc) => { syncUpdateOptimistic('delete', { id, location: loc }); window.closeActionModal(); };
+        window.openActionModal = (id, loc) => { 
+            const mid = document.getElementById('m-id-text');
+            const mloc = document.getElementById('m-loc-text');
+            const mo = document.getElementById('modal-overlay');
+            if(mid) mid.innerText = id; 
+            if(mloc) mloc.innerText = `סניף: ${window.state.currentBranch} | ${loc}`; 
+            if(mo) mo.style.display = 'flex'; 
+            const btn = document.getElementById('m-collect-btn');
+            if(btn) btn.onclick = () => window.deletePackage(id, loc); 
+        };
+        window.closeActionModal = () => {
+            const mo = document.getElementById('modal-overlay');
+            if(mo) mo.style.display = 'none';
+        };
+
+        loadData();
+    </script>
+</body>
+</html>
