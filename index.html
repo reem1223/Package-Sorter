@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ממשק החבילות 9.9 - Solid Scroll Pro</title>
     
-    <!-- טעינת תשתיות מה-CDN להרצה ישירה בדפדפן -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -47,7 +46,7 @@
             box-shadow: 0 8px 12px -3px rgba(37, 99, 235, 0.4) !important;
         }
 
-        /* כרטיסיות חבילות - גריד קשיח למניעת קפיצות גובה */
+        /* כרטיסיות חבילות */
         .recent-card { 
             width: 100%; height: 115px; min-height: 115px; max-height: 115px;
             background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; 
@@ -91,6 +90,11 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             text-align: center;
         }
+        .move-shelf-btn {
+            background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px 4px;
+            font-weight: 800; font-size: 14px; transition: all 0.2s;
+        }
+        .move-shelf-btn.full { opacity: 0.4; background: #f1f5f9; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -149,6 +153,7 @@
         };
 
         const SHEET_URL = "https://script.google.com/macros/s/AKfycbxTuVPyc62I4xwJojmfWr92z7OLBXM6HSDA4yv6MvPhwnm1II6EsPmt-MV-1BbVXJJA/exec";
+        const LOGO_URL = "https://i.imgur.com/OW6rN9h.png";
 
         function App() {
             const [currentBranch, setCurrentBranch] = useState(null);
@@ -172,7 +177,6 @@
             const settingsLockUntil = useRef(0);
             const scannerInstance = useRef(null);
             
-            // --- מנגנון גלילה קשיח (Solid Scroll) ---
             const scrollRef = useRef(null);
             const savedScrollTop = useRef(0);
 
@@ -181,7 +185,6 @@
                 return () => clearTimeout(timer);
             }, []);
 
-            // האזנה רציפה לגלילה כדי לשמור את המיקום הכי עדכני
             const handleScroll = useCallback((e) => {
                 savedScrollTop.current = e.target.scrollTop;
             }, []);
@@ -199,7 +202,6 @@
                     const currentDataStr = JSON.stringify(allPackages);
                     const newDataStr = JSON.stringify(newFiltered);
 
-                    // --- שיפור 1: מניעת עדכון State אם אין שינוי אמיתי ---
                     if (newDataStr !== currentDataStr) {
                         setAllPackages(newFiltered);
                     }
@@ -229,13 +231,10 @@
                 } catch (e) { setIsSyncing(false); }
             };
 
-            // --- שיפור 2: שחזור גלילה אגרסיבי ב-Layout Effect ---
             useLayoutEffect(() => {
                 if (scrollRef.current) {
                     const el = scrollRef.current;
                     const pos = savedScrollTop.current;
-                    
-                    // שימוש ב-requestAnimationFrame כפול כדי להבטיח שהדפדפן סיים לצייר
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
                             if (el && el.scrollTop !== pos) {
@@ -334,7 +333,6 @@
                 } else if (typingValue.length < 12) setTypingValue(typingValue + num);
             };
 
-            // Camera Controller
             useEffect(() => {
                 if (view === 'camera' && !scannerInstance.current) {
                     const startScanning = async () => {
@@ -366,13 +364,20 @@
                 }
             };
 
-            // UI Elements
             const Keypad = ({ btnClass = "" }) => (
                 <div className="grid grid-cols-3 gap-2">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => handleKeyClick(n.toString())} className={`bg-white border border-slate-200 py-3 rounded-2xl text-xl font-black shadow-sm active:bg-slate-100 ${btnClass}`}>{n}</button>)}
                     <button onClick={() => setTypingValue('')} className="bg-slate-100 py-3 rounded-2xl text-xs font-black text-slate-500 uppercase">C</button>
                     <button onClick={() => handleKeyClick('0')} className={`bg-white border border-slate-200 py-3 rounded-2xl text-xl font-black shadow-sm active:bg-slate-100 ${btnClass}`}>0</button>
                     <button onClick={() => setTypingValue(v => v.slice(0, -1))} className="bg-slate-100 py-3 rounded-2xl text-xl flex items-center justify-center shadow-sm active:bg-slate-200"><Icon name="back" size={24} className="rotate-180 text-slate-600" /></button>
+                </div>
+            );
+
+            const FooterCredit = () => (
+                <div className="py-3 text-center bg-slate-50 border-t shrink-0">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
+                        NexAria פתרונות טכנולוגיה
+                    </p>
                 </div>
             );
 
@@ -403,13 +408,7 @@
 
                     <div className="py-1 flex-1 overflow-hidden flex flex-col text-right">
                         <p className="text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-widest font-black italic">חבילות פעילות:</p>
-                        
-                        {/* שיפור: הוספת רפרנס ומאזין גלילה עבור שחזור מיקום מושלם */}
-                        <div 
-                            className="recent-scroll-container" 
-                            ref={scrollRef} 
-                            onScroll={handleScroll}
-                        >
+                        <div className="recent-scroll-container" ref={scrollRef} onScroll={handleScroll}>
                             {allPackages.map((p, i) => (
                                 <div key={`${p.id}-${p.shelf}-${p.branch}`} onClick={() => { setModalPackage(p); triggerDisplay(p); }} className="recent-card shadow-sm border-slate-100">
                                     <span className="text-[8px] font-bold text-slate-400 uppercase mb-1 leading-none italic">מדף</span>
@@ -432,7 +431,7 @@
                             <div className="mb-3 max-h-24 overflow-y-auto space-y-1.5 border-b pb-2 text-right">
                                 {searchResults.filter(p => String(p.id).includes(typingValue)).map((p, i) => (
                                     <div key={`${p.id}-search-${i}`} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
-                                        <button onClick={() => handlePackageDelete(p)} className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold active:scale-95 shadow-sm">נאסף ✅</button>
+                                        <button onClick={() => { setModalPackage(p); triggerDisplay(p); setSearchResults(null); }} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold active:scale-95 shadow-sm">ניהול חבילה ⚙️</button>
                                         <div className="text-right"><p className="font-black text-slate-800 text-md leading-none italic">{String(p.id)} <span className="text-blue-600 font-black">מדף {String(p.shelf)}</span></p></div>
                                     </div>
                                 ))}
@@ -441,87 +440,105 @@
                         )}
                         <Keypad btnClass="h-11" />
                     </div>
+                    <FooterCredit />
                 </div>
             );
 
             if (!isInitialReady) return <div className="status-overlay bg-white h-screen w-full flex flex-col items-center justify-center text-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div><p className="font-bold text-slate-700">טוען מערכת חבילות...</p></div>;
 
             if (view === 'branch_select' || !currentBranch) return (
-                <div className="app-container flex flex-col h-full p-8 items-center justify-center bg-white text-center">
-                    <div className="text-6xl mb-6 animate-bounce">🏢</div>
-                    <h1 className="text-3xl font-black mb-10 italic uppercase tracking-tighter">בחר סניף לעבודה</h1>
-                    <div class="w-full space-y-4">
-                        <button onClick={() => handleSelectBranch('רמתיים')} className="w-full py-6 bg-blue-600 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏡 סניף רמתיים</button>
-                        <button onClick={() => handleSelectBranch('סוקולוב')} className="w-full py-6 bg-slate-800 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏢 סניף סוקולוב</button>
+                <div className="app-container flex flex-col h-full bg-white relative">
+                    <div className="flex-1 flex flex-col p-8 items-center justify-center text-center">
+                        <div className="mb-8 w-48 h-48 flex items-center justify-center">
+                            <img src={LOGO_URL} alt="לוגו סלולארי לי" className="w-full h-full object-contain" />
+                        </div>
+                        <h1 className="text-3xl font-black mb-10 italic uppercase tracking-tighter">בחר סניף לעבודה</h1>
+                        <div className="w-full space-y-4">
+                            <button onClick={() => handleSelectBranch('רמתיים')} className="w-full py-6 bg-blue-600 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏡 סניף רמתיים</button>
+                            <button onClick={() => handleSelectBranch('סוקולוב')} className="w-full py-6 bg-slate-800 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏢 סניף סוקולוב</button>
+                        </div>
                     </div>
+                    <FooterCredit />
                 </div>
             );
 
             if (view === 'settings') return (
-                <div className="app-container p-6 text-right bg-white flex flex-col">
-                    <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-6 active:scale-90 shadow-sm"><Icon name="back" size={20} className="rotate-180 text-slate-600" /></button>
-                    <h2 className="text-2xl font-black mb-4 italic uppercase tracking-tighter text-right leading-none">הגדרות סניף {currentBranch}</h2>
-                    
-                    <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-4 text-right">
-                        <div className="space-y-3">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 uppercase leading-none">מצב מכשיר:</p>
-                            <button onClick={() => setDeviceMode('1')} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '1' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
-                                <Icon name="smartphone" size={32} className={deviceMode === '1' ? "text-blue-600" : "text-slate-300"} />
-                                <div className="text-right">
-                                    <p className="font-black text-lg leading-none">מנהל (מכשיר 1)</p>
-                                    <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">סריקה וחיפוש</p>
-                                </div>
-                            </button>
-                            <button onClick={() => { setDeviceMode('2'); setIsManagerVisible(true); }} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '2' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
-                                <Icon name="monitor" size={32} className={deviceMode === '2' ? "text-blue-600" : "text-slate-300"} />
-                                <div className="text-right">
-                                    <p className="font-black text-lg leading-none">תצוגה (מכשיר 2)</p>
-                                    <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">מסך ענק עבור לקוחות</p>
-                                </div>
-                            </button>
-                        </div>
-
-                        <div className="space-y-4 text-right">
-                            <div className="flex items-center gap-2 mr-1">
-                                <Icon name="settings" size={14} className="text-blue-600" />
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none text-right uppercase">קיבולת מדפים ב- {currentBranch}:</p>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2 text-right">
-                                {shelves.map(s => (
-                                    <div key={s} className="capacity-slider-row shadow-sm">
-                                        <div className="flex justify-between items-center">
-                                            <span className="bg-blue-600 text-white px-3 py-0.5 rounded-full text-xs font-black shadow-sm">מדף {s}</span>
-                                            <span className="font-black text-blue-800 text-lg">{shelfCapacities[s] || 5} חבילות</span>
-                                        </div>
-                                        <input type="range" min="1" max="10" value={shelfCapacities[s] || 5} onChange={(e) => handleUpdateShelfCapacity(s, e.target.value)} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                <div className="app-container text-right bg-white flex flex-col">
+                    <div className="p-6 flex-1 flex flex-col">
+                        <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-6 active:scale-90 shadow-sm"><Icon name="back" size={20} className="rotate-180 text-slate-600" /></button>
+                        <h2 className="text-2xl font-black mb-4 italic uppercase tracking-tighter text-right leading-none">הגדרות סניף {currentBranch}</h2>
+                        <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-4 text-right">
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 uppercase leading-none">מצב מכשיר:</p>
+                                <button onClick={() => setDeviceMode('1')} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '1' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
+                                    <Icon name="smartphone" size={32} className={deviceMode === '1' ? "text-blue-600" : "text-slate-300"} />
+                                    <div className="text-right">
+                                        <p className="font-black text-lg leading-none">מנהל (מכשיר 1)</p>
+                                        <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">סריקה וחיפוש</p>
                                     </div>
-                                ))}
+                                </button>
+                                <button onClick={() => { setDeviceMode('2'); setIsManagerVisible(true); }} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '2' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
+                                    <Icon name="monitor" size={32} className={deviceMode === '2' ? "text-blue-600" : "text-slate-300"} />
+                                    <div className="text-right">
+                                        <p className="font-black text-lg leading-none">תצוגה (מכשיר 2)</p>
+                                        <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">מסך ענק עבור לקוחות</p>
+                                    </div>
+                                </button>
+                            </div>
+                            <div className="space-y-4 text-right">
+                                <div className="flex items-center gap-2 mr-1">
+                                    <Icon name="settings" size={14} className="text-blue-600" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none text-right uppercase">קיבולת מדפים ב- {currentBranch}:</p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 text-right">
+                                    {shelves.map(s => (
+                                        <div key={s} className="capacity-slider-row shadow-sm">
+                                            <div className="flex justify-between items-center">
+                                                <span className="bg-blue-600 text-white px-3 py-0.5 rounded-full text-xs font-black shadow-sm">מדף {s}</span>
+                                                <span className="font-black text-blue-800 text-lg">{shelfCapacities[s] || 5} חבילות</span>
+                                            </div>
+                                            <input type="range" min="1" max="10" value={shelfCapacities[s] || 5} onChange={(e) => handleUpdateShelfCapacity(s, e.target.value)} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <FooterCredit />
                 </div>
             );
 
             if (view === 'add') return (
-                <div className="app-container p-6 text-right overflow-y-auto bg-white flex flex-col">
-                    <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-4 active:scale-90"><Icon name="back" size={20} className="rotate-180 text-slate-600" /></button>
-                    <div className="bg-blue-50 border-2 border-blue-100 rounded-[2.5rem] p-6 text-center mb-4 shadow-sm shrink-0">
-                        <p className="text-[10px] font-bold text-blue-400 uppercase mb-1 tracking-widest italic leading-none uppercase tracking-tighter">{isQuickAdd ? 'הוספה מהירה' : 'מספר חבילה'}</p>
-                        <p className="text-6xl font-black text-blue-700 tracking-tighter italic leading-none uppercase tracking-tighter">{String(typingValue) || (isQuickAdd ? '... - ...' : '----')}</p>
+                <div className="app-container text-right bg-white flex flex-col">
+                    <div className="p-6 flex-1 flex flex-col overflow-y-auto">
+                        <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-4 active:scale-90"><Icon name="back" size={20} className="rotate-180 text-slate-600" /></button>
+                        <div className="bg-blue-50 border-2 border-blue-100 rounded-[2.5rem] p-6 text-center mb-4 shadow-sm shrink-0">
+                            <p className="text-[10px] font-bold text-blue-400 uppercase mb-1 tracking-widest italic leading-none uppercase tracking-tighter">{isQuickAdd ? 'הוספה מהירה' : 'מספר חבילה'}</p>
+                            <p className="text-6xl font-black text-blue-700 tracking-tighter italic leading-none uppercase tracking-tighter">{String(typingValue) || (isQuickAdd ? '... - ...' : '----')}</p>
+                        </div>
+                        <div className="mb-4 shrink-0 text-right"><p className="text-[9px] font-bold text-slate-400 uppercase mb-2 mr-2 tracking-widest font-black italic uppercase tracking-tighter leading-none">בחר יעד אחסון:</p><div className="grid grid-cols-2 gap-2"><button onClick={() => setSelectedShelfType('standard')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'standard' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>מדף רגיל</button><button onClick={() => setSelectedShelfType('small')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'small' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>חבילות קטנות</button></div></div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-[1.8rem] p-3 mb-6 shadow-inner shrink-0 text-right"><Keypad btnClass="bg-white font-black h-11" /></div>
+                        <button onClick={handlePackageAdd} className="mt-auto w-full bg-blue-600 text-white font-black py-8 rounded-[2.2rem] text-3xl shadow-2xl active:scale-95 italic transition-all uppercase tracking-tighter leading-none">אשר ושמור חבילה ✅</button>
                     </div>
-                    <div className="mb-4 shrink-0 text-right"><p className="text-[9px] font-bold text-slate-400 uppercase mb-2 mr-2 tracking-widest font-black italic uppercase tracking-tighter leading-none">בחר יעד אחסון:</p><div className="grid grid-cols-2 gap-2"><button onClick={() => setSelectedShelfType('standard')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'standard' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>מדף רגיל</button><button onClick={() => setSelectedShelfType('small')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'small' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>חבילות קטנות</button></div></div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-[1.8rem] p-3 mb-6 shadow-inner shrink-0 text-right"><Keypad btnClass="bg-white font-black h-11" /></div>
-                    <button onClick={handlePackageAdd} className="mt-auto w-full bg-blue-600 text-white font-black py-8 rounded-[2.2rem] text-3xl shadow-2xl active:scale-95 italic transition-all uppercase tracking-tighter leading-none">אשר ושמור חבילה ✅</button>
+                    <FooterCredit />
                 </div>
             );
 
             if (view === 'camera') return (
-                <div className="app-container p-6 text-right bg-white flex flex-col"><button onClick={() => { stopScanner(); setView('home'); }} className="self-end p-3 bg-slate-100 rounded-xl mb-4 active:scale-90"><Icon name="x" size={20} className="text-slate-600" /></button><h2 className="text-xl font-black mb-4 italic uppercase leading-none text-right">סריקת ברקוד</h2><div id="reader"></div><div className="mt-6 p-6 bg-blue-50 border-2 border-blue-100 rounded-[2rem] text-center italic font-black text-5xl text-blue-800 tracking-tighter leading-none shadow-inner uppercase tracking-tighter">{String(typingValue) || '---'}</div><p className="text-center text-[10px] text-slate-400 font-bold mt-auto tracking-widest italic uppercase">כוון למרכז המלבן</p></div>
+                <div className="app-container text-right bg-white flex flex-col">
+                    <div className="p-6 flex-1 flex flex-col">
+                        <button onClick={() => { stopScanner(); setView('home'); }} className="self-end p-3 bg-slate-100 rounded-xl mb-4 active:scale-90"><Icon name="x" size={20} className="text-slate-600" /></button>
+                        <h2 className="text-xl font-black mb-4 italic uppercase leading-none text-right">סריקת ברקוד</h2>
+                        <div id="reader"></div>
+                        <div className="mt-6 p-6 bg-blue-50 border-2 border-blue-100 rounded-[2rem] text-center italic font-black text-5xl text-blue-800 tracking-tighter leading-none shadow-inner uppercase tracking-tighter">{String(typingValue) || '---'}</div>
+                        <p className="text-center text-[10px] text-slate-400 font-bold mt-auto tracking-widest italic uppercase">כוון למרכז המלבן</p>
+                    </div>
+                    <FooterCredit />
+                </div>
             );
 
             return (
                 <div className={`app-container h-full w-full flex overflow-hidden ${deviceMode === '2' ? 'flex-row-reverse max-w-none' : 'flex-col'}`}>
-                    {/* Device 2: Display Panel */}
                     {deviceMode === '2' && (
                         <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center text-white border-r-8 border-slate-800 p-12 text-center animate-in fade-in duration-500 overflow-hidden relative">
                             {!isManagerVisible && (
@@ -552,6 +569,11 @@
                                     <div className="mt-16 flex items-center gap-4 text-slate-500 uppercase font-black tracking-widest italic leading-none transition-all uppercase tracking-tighter leading-none"><Icon name="refresh" className="animate-spin text-slate-600" /> סנכרון Google Sheets פעיל</div>
                                 </div>
                             )}
+                            <div className="absolute bottom-6 w-full text-center">
+                                <p className="text-[12px] font-bold text-slate-600 uppercase tracking-[0.3em] italic">
+                                    NexAria פתרונות טכנולוגיה
+                                </p>
+                            </div>
                         </div>
                     )}
 
@@ -563,7 +585,7 @@
                         <div className="fixed inset-0 bg-black/80 z-[6000] flex items-center justify-center p-6" onClick={closeActionModal}>
                             <div className="bg-white rounded-[2.5rem] p-8 text-center w-full max-w-sm shadow-2xl animate-in zoom-in duration-200 text-right" onClick={e => e.stopPropagation()}>
                                 <div className="flex justify-between items-start mb-6">
-                                    <div className="text-right text-right">
+                                    <div className="text-right">
                                         <h3 className="text-[10px] font-bold text-slate-400 mb-2 uppercase italic leading-none italic uppercase">ניהול פריט מהיר</h3>
                                         <p className="text-6xl font-black text-slate-900 tracking-tighter leading-none italic uppercase tracking-tighter">{String(modalPackage.id)}</p>
                                     </div>
@@ -583,7 +605,7 @@
                                             const count = allPackages.filter(p => p.shelf === s).length;
                                             const capacity = shelfCapacities[s] || 5;
                                             const isFull = count >= capacity && modalPackage.shelf !== s;
-                                            return (<button key={s} disabled={isFull} onClick={() => handleMoveShelf(s)} className={`move-shelf-btn ${isFull ? 'full' : ''} ${modalPackage.shelf === s ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm' : ''}`}>{s}<br/><span className="text-[7px] opacity-70">(${count}/${capacity})</span></button>);
+                                            return (<button key={s} disabled={isFull} onClick={() => handleMoveShelf(s)} className={`move-shelf-btn ${isFull ? 'full' : ''} ${modalPackage.shelf === s ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm' : ''}`}>{s}<br/><span className="text-[7px] opacity-70">({count}/{capacity})</span></button>);
                                         })}
                                     </div>
                                     <button onClick={() => handleMoveShelf('חבילות קטנות')}
