@@ -3,8 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ממשק החבילות 5.5 - יציב ומהיר</title>
+    <title>ממשק החבילות 8.7 - Smart Display Sync</title>
+    
+    <!-- טעינת תשתיות מה-CDN להרצה ישירה בדפדפן -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
         
@@ -21,7 +28,9 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        #app {
+        #root { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+        .app-container {
             background-color: white;
             width: 100%;
             max-width: 450px;
@@ -34,534 +43,419 @@
         }
 
         @media (min-height: 700px) {
-            #app { height: 850px; max-height: 95vh; border-radius: 2.5rem; }
+            .app-container { height: 850px; max-height: 95vh; border-radius: 2.5rem; }
         }
 
-        /* עיצוב כפתור בחירה פעיל */
+        /* סורק ברקוד */
+        #reader { width: 100% !important; border: none !important; background: #000 !important; height: 140px !important; border-radius: 1.25rem; overflow: hidden; }
+        #reader video { height: 140px !important; object-fit: cover !important; border-radius: 1.25rem; }
+        
         .active-option {
             background-color: #2563eb !important; 
             color: white !important;
             border-color: #1e40af !important; 
-            transform: translateY(-4px) !important;
-            box-shadow: 0 12px 20px -5px rgba(37, 99, 235, 0.4) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 12px -3px rgba(37, 99, 235, 0.4) !important;
         }
 
-        /* כרטיסיות חבילות אחרונות */
         .recent-card { 
-            width: 110px; height: 125px; flex-shrink: 0;
+            width: 100%; height: 110px;
             background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             cursor: pointer; transition: all 0.2s;
         }
-        .recent-card:active { transform: scale(0.92); }
+        .recent-card:active { transform: scale(0.95); background-color: #f8fafc; }
 
-        /* מקלדת נומרית */
+        .recent-scroll-container { 
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            overflow-y: auto;
+            padding: 4px 0 20px 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .keypad-btn { 
-            background-color: #ffffff; border: 1px solid #e2e8f0; color: #1e293b; 
-            border-radius: 20px; height: 52px; font-size: 1.4rem; font-weight: 800;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.1s;
+            background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 15px; height: 44px; 
+            font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
         }
         .keypad-btn:active { background-color: #f1f5f9; transform: scale(0.95); }
 
-        /* מסך טעינה */
-        #status-screen {
-            position: absolute; inset: 0; background: #ffffff; z-index: 5000;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            text-align: center;
-        }
-
-        .progress-container {
-            width: 80%; max-width: 280px; height: 8px;
-            background-color: #f1f5f9; border-radius: 99px;
-            overflow: hidden; margin-bottom: 1rem;
-        }
-
-        .progress-bar-fill {
-            height: 100%; width: 0%;
-            background-color: #32CD32;
-            box-shadow: 0 0 10px rgba(50, 205, 50, 0.5);
-            border-radius: 99px;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .sync-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            display: inline-block; margin-left: 6px;
-        }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .syncing { background-color: #fbbf24; animation: pulse 1s infinite; }
         .synced { background-color: #22c55e; box-shadow: 0 0 8px #22c55e; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* מודאלים */
-        #modal-overlay, #control-modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.85); z-index: 6000;
-            align-items: center; justify-content: center;
-        }
-        .modal-bg { background-color: #ffffff; border-radius: 2.5rem; padding: 1.5rem; width: 90%; max-width: 360px; text-align: center; }
-
-        .recent-scroll-container { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 8px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
-        .recent-scroll-container::-webkit-scrollbar { display: none; }
-
-        .supplier-badge { font-size: 8px; font-weight: 800; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; margin-top: 6px; }
-        .badge-epost { background: #fee2e2; color: #dc2626; }
-        .badge-distribution { background: #dcfce7; color: #166534; }
-        .badge-hfd { background: #dbeafe; color: #2563eb; }
-
-        .branch-btn {
-            width: 100%; padding: 2rem 1rem; border-radius: 1.5rem; border: 2px solid #e2e8f0;
-            background: white; text-align: center; transition: all 0.3s;
-        }
-        .branch-btn:active { transform: scale(0.95); border-color: #2563eb; }
+        @keyframes scanMove { 0% { top: 0% } 50% { top: 100% } 100% { top: 0% } }
+        .scan-line-anim { animation: scanMove 2s infinite linear; }
     </style>
 </head>
 <body>
+    <div id="root"></div>
 
-    <div id="app">
-        <!-- מסך טעינה -->
-        <div id="status-screen">
-            <div class="flex flex-col items-center w-full">
-                <h1 class="text-2xl font-black text-slate-800 mb-8 tracking-tight italic">ממשק החבילות 5.5</h1>
-                <div class="progress-container">
-                    <div id="progress-bar" class="progress-bar-fill"></div>
-                </div>
-                <p id="status-text-display" class="text-xs font-bold text-slate-400 uppercase tracking-widest">מכין חיבור יציב...</p>
-            </div>
-        </div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-        <div id="main-content" class="flex flex-col h-full overflow-hidden"></div>
-    </div>
+        // --- Icons System ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const icons = {
+                settings: <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />,
+                camera: <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />,
+                back: <path d="m9 18 6-6-6-6" />,
+                smartphone: <path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 18h.01" />,
+                monitor: <path d="M2 3h20v10H2zM12 17v4M8 21h8" />,
+                refresh: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24L21 8M21 3v5h-5" />,
+                plus: <path d="M12 5v14M5 12h14" />,
+                x: <path d="M18 6 6 18M6 6l12 12" />,
+                package: <path d="m7.5 4.27 9 5.15m-9 5.15 9-5.15m-9 5.15V19.5m9-10.15v10.15M3 15.25V8.35L12 3.25L21 8.35V15.25L12 20.35L3 15.25Z" strokeWidth="2" />
+            };
 
-    <!-- מודאל פעולות -->
-    <div id="modal-overlay" onclick="window.closeActionModal()">
-        <div class="modal-bg" onclick="event.stopPropagation()">
-            <h3 class="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest leading-none">ניהול חבילה</h3>
-            <p id="m-loc-text" class="font-extrabold text-xs mb-1 uppercase"></p>
-            <p id="m-id-text" class="text-6xl font-black text-gray-900 mb-8 tracking-tighter leading-none"></p>
-            <div class="flex flex-col gap-3">
-                <button id="m-collect-btn" class="w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 text-xl">נאסף (מחיקה)</button>
-                <button onclick="window.closeActionModal()" class="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl active:scale-95">חזור</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- מודאל ספרות ביקורת (בר הפצה) -->
-    <div id="control-modal-overlay">
-        <div class="modal-bg">
-            <h3 class="text-lg font-black text-slate-800 mb-2">ספרות ביקורת נדרשות</h3>
-            <p class="text-xs text-slate-500 mb-4 leading-relaxed text-center">נמצאה כפילות בבר הפצה.<br>הקש 3 ספרות ביקורת:</p>
-            
-            <div class="bg-slate-100 rounded-2xl py-4 mb-4 border border-blue-200">
-                <p id="control-id-display" class="text-[10px] text-slate-400 font-bold mb-1"></p>
-                <p id="control-input-display" class="text-4xl font-black text-blue-600 tracking-[0.2em]">---</p>
-            </div>
-
-            <!-- מקלדת מובנית במודאל -->
-            <div class="grid grid-cols-3 gap-1.5 mb-5" id="modal-keypad-container"></div>
-
-            <div class="flex flex-col gap-2">
-                <button onclick="window.confirmControlDigits()" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg active:scale-95 text-lg transition-all">אשר ושמור</button>
-                <button onclick="window.closeControlModal()" class="w-full bg-slate-100 text-slate-500 font-bold py-2.5 rounded-xl active:scale-95 text-sm">ביטול</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        window.SHEET_URL = "https://script.google.com/macros/s/AKfycbxTuVPyc62I4xwJojmfWr92z7OLBXM6HSDA4yv6MvPhwnm1II6EsPmt-MV-1BbVXJJA/exec";
-        
-        window.state = {
-            allPackages: [],
-            currentBranch: null, 
-            currentView: 'branch_select', 
-            typingValue: '',
-            searchResults: null,
-            selectedOption: null,
-            isSyncing: false,
-            isEnteringControlDigits: false,
-            controlDigits: '',
-            originalIdForControl: '',
-            
-            // מנגנון הגנה על עדכון אופטימי
-            pauseSyncUntil: 0
+            return (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || null}
+                    {name === 'settings' && <circle cx="12" cy="12" r="3" />}
+                    {name === 'camera' && <circle cx="12" cy="13" r="3" />}
+                </svg>
+            );
         };
 
-        const MAX_PER_SHELF = 15;
-        const suppliers = ["Epost", "בר הפצה", "HFD"]; 
-        const SHELF_GROUPS = {
-            "Epost": ["A", "B"],
-            "בר הפצה": ["C", "D"],
-            "HFD": ["E", "F"],
-            "Overflow": ["G", "H"]
-        };
-        const shelves = ["A", "B", "C", "D", "E", "F", "G", "H"];
+        const SHEET_URL = "https://script.google.com/macros/s/AKfycbxTuVPyc62I4xwJojmfWr92z7OLBXM6HSDA4yv6MvPhwnm1II6EsPmt-MV-1BbVXJJA/exec";
 
-        // --- פונקציות סנכרון וטעינה ---
+        function App() {
+            const [currentBranch, setCurrentBranch] = useState(null);
+            const [view, setView] = useState('branch_select');
+            const [deviceMode, setDeviceMode] = useState('1'); 
+            const [allPackages, setAllPackages] = useState([]);
+            const [displayState, setDisplayState] = useState({ id: '---', shelf: '---' });
+            const [typingValue, setTypingValue] = useState('');
+            const [isQuickAdd, setIsQuickAdd] = useState(false);
+            const [selectedShelfType, setSelectedShelfType] = useState('standard');
+            const [searchResults, setSearchResults] = useState(null);
+            const [isSyncing, setIsSyncing] = useState(false);
+            const [modalPackage, setModalPackage] = useState(null);
+            const [isInitialReady, setIsInitialReady] = useState(false);
 
-        async function loadData(silent = false) {
-            // הגנה: אם הרגע ביצענו כתיבה, נמנע מרענון ל-3 שניות כדי למנוע הבהוב
-            if (silent && Date.now() < window.state.pauseSyncUntil) return;
+            const shelves = ["A", "B", "C", "D", "E", "F", "G", "H"];
+            const MAX_PER_SHELF = 15;
+            const pauseSyncUntil = useRef(0);
+            const scannerInstance = useRef(null);
 
-            const bar = document.getElementById('progress-bar');
-            const txt = document.getElementById('status-text-display');
-            if(!silent) { if(bar) bar.style.width = '30%'; if(txt) txt.innerText = "מתחבר..."; }
-            
-            window.state.isSyncing = true;
-            if(window.state.currentView === 'home') window.render();
+            // App readiness
+            useEffect(() => {
+                const timer = setTimeout(() => setIsInitialReady(true), 500);
+                return () => clearTimeout(timer);
+            }, []);
 
-            try {
-                const response = await fetch(`${window.SHEET_URL}?nocache=${Date.now()}`, { method: 'GET', redirect: 'follow' });
-                const data = await response.json();
+            // Data Fetching Logic
+            const loadData = async (silent = false) => {
+                if (!currentBranch || view === 'camera') return;
+                if (silent && (Date.now() < pauseSyncUntil.current)) return;
                 
-                if (Array.isArray(data)) {
-                    window.state.allPackages = data.map(p => ({
-                        id: (p.id || p.ID || '').toString().trim(),
-                        shelf: (p.shelf || p.SHELF || '').toString().trim(),
-                        supplier: (p.supplier || p.SUPPLIER || '').toString().trim(),
-                        branch: (p.branch || p.BRANCH || 'רמתיים').toString().trim()
-                    }));
+                setIsSyncing(true);
+                try {
+                    const response = await fetch(`${SHEET_URL}?nocache=${Date.now()}`);
+                    const data = await response.json();
+                    
+                    let fetchedPackages = [];
+                    if (data.packages) {
+                        fetchedPackages = data.packages.filter(p => p.branch === currentBranch);
+                        setAllPackages(fetchedPackages);
+                    }
+                    
+                    if (data.displayStates && data.displayStates[currentBranch]) {
+                        const dState = data.displayStates[currentBranch];
+                        const cleanId = String(dState.id || '').trim();
+                        const existsInStock = fetchedPackages.some(p => String(p.id).trim() === cleanId);
+                        const isWaitingPlaceholder = cleanId === '---' || cleanId === '';
+
+                        if (existsInStock && !isWaitingPlaceholder) {
+                            setDisplayState({ id: cleanId, shelf: String(dState.shelf || '---') });
+                        } else {
+                            setDisplayState({ id: '---', shelf: '---' });
+                        }
+                    } else {
+                        setDisplayState({ id: '---', shelf: '---' });
+                    }
+                    setIsSyncing(false);
+                } catch (e) { setIsSyncing(false); }
+            };
+
+            useEffect(() => {
+                if (!currentBranch) return;
+                const interval = setInterval(() => loadData(true), 6000);
+                return () => clearInterval(interval);
+            }, [currentBranch, view]);
+
+            useEffect(() => {
+                if (currentBranch) loadData(false);
+            }, [currentBranch]);
+
+            const apiCall = async (params) => {
+                setIsSyncing(true);
+                pauseSyncUntil.current = Date.now() + 5000;
+                try {
+                    await fetch(SHEET_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify({ ...params, branch: currentBranch })
+                    });
+                    setTimeout(() => loadData(true), 2000);
+                } catch (e) { setIsSyncing(false); }
+            };
+
+            // --- Handlers ---
+            const handleSelectBranch = (branch) => {
+                setCurrentBranch(branch);
+                setView('home');
+            };
+
+            const handlePackageAdd = () => {
+                if (typingValue.length < 2) return;
+                let targetShelf = selectedShelfType === 'standard' ? (shelves.find(s => allPackages.filter(p => p.shelf === s).length < MAX_PER_SHELF) || "H") : "חבילות קטנות";
+                const newPkg = { id: typingValue, shelf: targetShelf, supplier: 'בר הפצה' };
+                setAllPackages(prev => [newPkg, ...prev]);
+                apiCall({ action: 'add', ...newPkg });
+                setTypingValue(''); setView('home'); setIsQuickAdd(false);
+            };
+
+            const handlePackageDelete = (pkg) => {
+                setAllPackages(prev => prev.filter(p => !(p.id === pkg.id && p.shelf === pkg.shelf)));
+                apiCall({ action: 'delete', id: pkg.id, shelf: pkg.shelf });
+                // Note: After deletion, Device 2 will clear automatically in next polling
+                setModalPackage(null);
+            };
+
+            const triggerDisplay = (pkg) => {
+                setDisplayState({ id: String(pkg.id), shelf: String(pkg.shelf) });
+                apiCall({ action: 'updateDisplay', id: pkg.id, shelf: pkg.shelf });
+            };
+
+            // --- תיקון מבוקש: איפוס תצוגה בסגירת המודאל ---
+            const closeActionModal = () => {
+                setModalPackage(null);
+                // שליחת פקודת איפוס ל-Google Sheets
+                apiCall({ action: 'updateDisplay', id: '---', shelf: '---' });
+                setDisplayState({ id: '---', shelf: '---' });
+            };
+
+            const handleKeyClick = (num) => {
+                if (isQuickAdd) {
+                    if (typingValue.length < 7) {
+                        let val = typingValue + num;
+                        if (val.length === 3 && !typingValue.includes('-')) val += '-';
+                        setTypingValue(val);
+                    }
+                } else if (typingValue.length < 12) setTypingValue(typingValue + num);
+            };
+
+            // Scanner
+            useEffect(() => {
+                if (view === 'camera' && !scannerInstance.current) {
+                    const startScanning = async () => {
+                        try {
+                            const html5QrCode = new window.Html5Qrcode("reader");
+                            scannerInstance.current = html5QrCode;
+                            await html5QrCode.start(
+                                { facingMode: "environment" },
+                                { fps: 20, qrbox: { width: 280, height: 120 } },
+                                (decodedText) => {
+                                    let clean = decodedText.replace(/[^0-9-]/g, '');
+                                    if (clean.length === 6 && !clean.includes('-')) clean = clean.slice(0,3) + '-' + clean.slice(3);
+                                    setTypingValue(clean);
+                                    stopScanner();
+                                    setView('add');
+                                    setIsQuickAdd(clean.includes('-'));
+                                }
+                            );
+                        } catch (err) { setView('home'); }
+                    };
+                    setTimeout(startScanning, 200);
                 }
-                
-                window.state.isSyncing = false;
-                if (!silent) {
-                    if(bar) bar.style.width = '100%';
-                    setTimeout(() => {
-                        const loader = document.getElementById('status-screen');
-                        if (loader) loader.style.display = 'none';
-                        window.render();
-                    }, 600);
-                } else {
-                    window.render();
+                return () => { if (view !== 'camera') stopScanner(); };
+            }, [view]);
+
+            const stopScanner = async () => {
+                if (scannerInstance.current) {
+                    try { await scannerInstance.current.stop(); scannerInstance.current = null; } catch (e) { scannerInstance.current = null; }
                 }
-            } catch (e) {
-                window.state.isSyncing = false;
-                window.render();
-            }
-        }
+            };
 
-        // רענון אוטומטי כל 10 שניות
-        setInterval(() => loadData(true), 10000);
-
-        async function syncUpdateOptimistic(action, pkgData) {
-            window.state.isSyncing = true;
-            // השהיית רענונים אוטומטיים ל-3 שניות כדי למנוע הבהוב
-            window.state.pauseSyncUntil = Date.now() + 3000;
-
-            const fullPkg = { ...pkgData, branch: window.state.currentBranch, timestamp: Date.now() };
-            
-            // --- עדכון אופטימי מיידי ---
-            if (action === 'add') {
-                window.state.allPackages.push(fullPkg);
-            } else if (action === 'delete') {
-                window.state.allPackages = window.state.allPackages.filter(p => 
-                    !(p.id === pkgData.id && p.shelf === pkgData.shelf && p.branch === window.state.currentBranch)
-                );
-            }
-            
-            window.render();
-
-            try {
-                // שליחה ברקע ללא המתנה לחסימת ה-UI
-                fetch(window.SHEET_URL, { 
-                    method: 'POST', 
-                    mode: 'no-cors', 
-                    body: JSON.stringify({ action, ...fullPkg }) 
-                }).then(() => {
-                    // אחרי הכתיבה, נמתין מעט ונטען נתונים עדכניים
-                    setTimeout(() => loadData(true), 2500);
-                });
-            } catch (e) { 
-                window.state.isSyncing = false; 
-                window.render(); 
-            }
-        }
-
-        // --- לוגיקת רינדור ---
-
-        window.render = function() {
-            const container = document.getElementById('main-content');
-            if (!container) return;
-            const scrollContainer = container.querySelector('.recent-scroll-container');
-            const savedScrollPos = scrollContainer ? scrollContainer.scrollLeft : 0;
-
-            if (window.state.currentView === 'branch_select') renderBranchSelect(container);
-            else if (window.state.currentView === 'home') renderHome(container);
-            else renderAdd(container);
-
-            const newScroll = container.querySelector('.recent-scroll-container');
-            if (newScroll) newScroll.scrollLeft = savedScrollPos;
-            
-            if (window.state.isEnteringControlDigits) renderModalKeypad();
-        }
-
-        function renderBranchSelect(container) {
-            container.innerHTML = `
-                <div class="flex flex-col h-full p-8 items-center justify-center bg-white text-center">
-                    <h2 class="text-3xl font-black mb-10 italic text-slate-800 leading-tight tracking-tighter">ממשק החבילות<br>בחר סניף</h2>
-                    <div class="w-full space-y-4">
-                        <button onclick="window.selectBranch('רמתיים')" class="branch-btn shadow-lg active:scale-95 transition-all">
-                            <span class="text-3xl block mb-2">🏡</span><span class="text-xl font-black text-slate-800">סניף רמתיים</span>
-                        </button>
-                        <button onclick="window.selectBranch('סוקולוב')" class="branch-btn shadow-lg active:scale-95 transition-all">
-                            <span class="text-3xl block mb-2">🏢</span><span class="text-xl font-black text-slate-800">סניף סוקולוב</span>
-                        </button>
-                    </div>
+            // Components
+            const Keypad = ({ btnClass = "" }) => (
+                <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => handleKeyClick(n.toString())} className={`bg-white border border-slate-200 py-3 rounded-2xl text-xl font-black shadow-sm active:bg-slate-100 ${btnClass}`}>{n}</button>)}
+                    <button onClick={() => setTypingValue('')} className="bg-slate-100 py-3 rounded-2xl text-xs font-black text-slate-500 uppercase">C</button>
+                    <button onClick={() => handleKeyClick('0')} className={`bg-white border border-slate-200 py-3 rounded-2xl text-xl font-black shadow-sm active:bg-slate-100 ${btnClass}`}>0</button>
+                    <button onClick={() => setTypingValue(v => v.slice(0, -1))} className="bg-slate-100 py-3 rounded-2xl text-xl flex items-center justify-center shadow-sm active:bg-slate-200"><Icon name="back" size={24} className="rotate-180 text-slate-600" /></button>
                 </div>
-            `;
-        }
+            );
 
-        function renderHome(container) {
-            const data = window.state.allPackages.filter(p => p.branch === window.state.currentBranch);
-            const recent = [...data].reverse().slice(0, 15);
-            
-            container.innerHTML = `
-                <div class="flex flex-col h-full overflow-hidden">
-                    <div class="p-4 flex justify-between items-center shrink-0">
-                        <div class="w-10"></div>
-                        <div class="bg-slate-50 border border-slate-200 px-6 py-2 rounded-[2rem] text-center shadow-sm flex items-center justify-center gap-2.5">
-                            <span class="sync-dot ${window.state.isSyncing ? 'syncing' : 'synced'}"></span>
-                            <div>
-                                <p class="text-[9px] font-bold text-slate-500 uppercase leading-none tracking-tighter">${window.state.currentBranch}</p>
-                                <p class="text-[12px] mt-0.5 text-slate-800 font-extrabold uppercase leading-none">ממשק החבילות</p>
+            const ManagerUI = () => (
+                <div className="flex flex-col h-full bg-white relative px-4 text-right overflow-hidden">
+                    <div className="py-2 flex justify-between items-center shrink-0 border-b -mx-4 px-4 bg-white z-20">
+                        <button onClick={() => setView('settings')} className="p-2 bg-slate-100 rounded-xl active:scale-90 shadow-sm"><Icon name="settings" size={18} /></button>
+                        <div className="bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-inner">
+                            <span className={`sync-dot ${isSyncing ? 'syncing' : 'synced'}`}></span>
+                            <div className="text-right">
+                                <p className="text-[8px] font-bold text-slate-400 uppercase leading-none">{String(currentBranch)}</p>
+                                <p className="font-black text-[11px] text-slate-800 uppercase mt-0.5 leading-none">ממשק חבילות</p>
                             </div>
                         </div>
-                        <button onclick="window.state.currentBranch = null; window.state.currentView = 'branch_select'; window.render();" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-[11px] font-bold active:scale-95">סניף</button>
+                        <button onClick={() => setCurrentBranch(null)} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm">סניף</button>
                     </div>
 
-                    <div class="px-5 pb-4 shrink-0">
-                        <button onclick="window.setView('add')" class="w-full bg-blue-600 text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-blue-100 text-xl active:scale-95 italic transition-all">
-                            📦 הוספת חבילה ב${window.state.currentBranch}
-                        </button>
+                    <div className="py-3 shrink-0 grid grid-cols-2 gap-2 mt-1">
+                        <button onClick={() => setView('camera')} className="col-span-2 bg-blue-600 text-white font-black py-3.5 rounded-2xl shadow-lg active:scale-95 italic flex items-center justify-center gap-2 leading-none"><Icon name="camera" size={20} /> סריקת ברקוד מהירה</button>
+                        <button onClick={() => { setIsQuickAdd(true); setView('add'); }} className="bg-emerald-600 text-white font-black py-3 rounded-xl shadow active:scale-95 text-[11px] italic uppercase tracking-tighter">➕ הוספה (XXX-XXX)</button>
+                        <button onClick={() => setSearchResults(allPackages)} className="bg-slate-50 text-slate-600 font-bold py-3 rounded-xl border border-slate-200 text-[11px] shadow-sm">⌨️ חיפוש וניהול</button>
                     </div>
 
-                    <div class="px-5 py-3 overflow-hidden text-right">
-                        <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase text-xs tracking-widest">חבילות אחרונות בסניף:</p>
-                        <div class="recent-scroll-container">
-                            ${recent.length > 0 ? recent.map(p => {
-                                let bCls = p.supplier === 'Epost' ? 'badge-epost' : p.supplier === 'בר הפצה' ? 'badge-distribution' : 'badge-hfd';
-                                return `<div onclick="window.openActionModal('${p.id}', '${p.shelf}', '${p.supplier}')" class="recent-card shadow-md animate-in fade-in duration-300">
-                                    <span class="text-[9px] font-bold text-slate-400 leading-none mb-1 uppercase tracking-widest">מדף ${p.shelf}</span>
-                                    <span class="text-4xl font-black text-blue-600 leading-none">${p.shelf}</span>
-                                    <span class="text-[13px] font-black text-slate-800 mt-1">${p.id}</span>
-                                    <span class="supplier-badge ${bCls}">${p.supplier}</span>
-                                </div>`;
-                            }).join('') : '<div class="w-full py-8 text-center text-slate-300 italic border border-dashed rounded-xl">אין חבילות בסניף</div>'}
-                        </div>
-                    </div>
-
-                    <div class="mt-auto bg-slate-50 border-t border-slate-200 p-5 rounded-t-[2.5rem] shadow-inner text-right">
-                        <div id="results-area" class="empty:hidden mb-3 max-h-32 overflow-y-auto space-y-2">
-                            ${window.state.searchResults ? (window.state.searchResults.length === 0 ? '<p class="text-center text-red-500 font-bold text-xs py-2 animate-pulse">חבילה לא נמצאה</p>' : window.state.searchResults.map(p => {
-                                let bCls = p.supplier === 'Epost' ? 'badge-epost' : p.supplier === 'בר הפצה' ? 'badge-distribution' : 'badge-hfd';
-                                return `<div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-2xl shadow-sm">
-                                    <div class="text-right">
-                                        <p class="font-black text-lg text-slate-800 leading-none italic">${p.id} <span class="text-blue-600 font-black">במדף ${p.shelf}</span></p>
-                                        <span class="supplier-badge ${bCls} inline-block">${p.supplier}</span>
+                    <div className="py-1 flex-1 overflow-hidden flex flex-col">
+                        <p className="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest font-black italic">חבילות פעילות:</p>
+                        <div className="flex-1 overflow-y-auto space-y-3 pb-4 pr-1">
+                            <div className="grid grid-cols-2 gap-3">
+                                {allPackages.map((p, i) => (
+                                    <div key={i} onClick={() => { setModalPackage(p); triggerDisplay(p); }} className="recent-card shadow-sm border-slate-100">
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase mb-1 leading-none tracking-widest italic">מדף</span>
+                                        <span className={`font-black text-blue-600 leading-tight tracking-tighter ${p.shelf === 'חבילות קטנות' ? 'text-xl' : 'text-4xl'}`}>{String(p.shelf === 'חבילות קטנות' ? 'קטנות' : p.shelf)}</span>
+                                        <span className="text-[13px] font-black text-slate-800 mt-1.5 italic leading-none">{String(p.id)}</span>
                                     </div>
-                                    <button onclick="window.deletePackage('${p.id}', '${p.shelf}')" class="bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold active:scale-95 shadow-md">נאסף</button>
-                                </div>`;
-                            }).join('')) : ''}
-                        </div>
-                        <div class="flex gap-2 mb-4">
-                            <div class="flex-1 bg-white border-2 border-slate-200 rounded-2xl h-14 flex items-center justify-center shadow-inner">
-                                <span class="${window.state.typingValue ? 'text-3xl font-black text-slate-800' : 'text-slate-300 text-sm italic'}">${window.state.typingValue || 'חפש מספר חבילה...'}</span>
+                                ))}
+                                {allPackages.length === 0 && <div className="col-span-2 py-12 text-center text-slate-300 border-2 border-dashed border-slate-100 rounded-[2.5rem] italic font-bold text-sm">אין חבילות במערכת</div>}
                             </div>
-                            <button onclick="window.handleSearch()" class="bg-blue-600 text-white px-8 h-14 rounded-2xl font-bold active:scale-95 shadow-md transition-all">חיפוש</button>
-                        </div>
-                        ${renderKeypadHtml()}
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderAdd(container) {
-            container.innerHTML = `
-                <div class="flex flex-col h-full p-6 bg-white">
-                    <button onclick="window.setView('home')" class="self-start p-3 bg-slate-100 rounded-xl mb-4 text-xl shadow-sm active:scale-95">🔙</button>
-                    <div class="bg-blue-50 border-2 border-blue-100 rounded-[2rem] p-4 text-center mb-6 shadow-sm">
-                        <p class="text-[10px] font-bold text-blue-400 uppercase mb-1 leading-none tracking-widest text-center">מספר חבילה</p>
-                        <p class="text-6xl font-black text-blue-700 min-h-[60px] tracking-tighter leading-none text-center">${window.state.typingValue || '----'}</p>
-                    </div>
-                    <div class="mb-4 text-right">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-3 mr-1 tracking-widest">בחר ספק (המדף ייבחר חכם):</p>
-                        <div class="grid grid-cols-3 gap-2">
-                            ${suppliers.map(s => `<button onclick="window.setOption('${s}')" class="option-btn border-2 py-4 rounded-2xl text-[13px] font-bold ${window.state.selectedOption === s ? 'active-option' : 'bg-white border-slate-100 text-slate-600'}">${s}</button>`).join('')}
                         </div>
                     </div>
-                    <div class="bg-slate-50 border border-slate-200 rounded-3xl p-4 mb-4 shadow-inner text-right">
-                        ${renderKeypadHtml()}
+
+                    <div className="mt-auto bg-slate-50 border-t p-4 rounded-t-[2.5rem] shrink-0 shadow-inner z-20">
+                        <div className="flex gap-2 mb-3">
+                            <div className="flex-1 bg-white border-2 border-slate-200 rounded-xl h-11 flex items-center justify-center font-black text-xl text-slate-800 shadow-inner overflow-hidden">
+                                {String(typingValue) || <span className="text-slate-300 text-sm font-normal italic leading-none">חפש...</span>}
+                            </div>
+                            <button onClick={() => setSearchResults(allPackages.filter(p => String(p.id).includes(typingValue)))} className="bg-blue-600 text-white px-6 h-11 rounded-xl font-bold active:scale-95 shadow-md text-sm leading-none transition-all">חפש</button>
+                        </div>
+                        {searchResults && (
+                            <div className="mb-3 max-h-24 overflow-y-auto space-y-1.5 border-b pb-2">
+                                {searchResults.filter(p => String(p.id).includes(typingValue)).map((p, i) => (
+                                    <div key={i} className="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                                        <button onClick={() => handlePackageDelete(p)} className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold active:scale-95 shadow-sm">נאסף ✅</button>
+                                        <div className="text-right">
+                                            <p className="font-black text-slate-800 text-md leading-none italic">{String(p.id)} <span className="text-blue-600 font-black">מדף {String(p.shelf)}</span></p>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button onClick={() => setSearchResults(null)} className="w-full text-center text-[10px] text-slate-400 py-1 uppercase font-bold">סגור תוצאות ✕</button>
+                            </div>
+                        )}
+                        <Keypad btnClass="h-11" />
                     </div>
-                    <button onclick="window.savePackage()" class="mt-auto w-full bg-blue-600 text-white font-black py-5 rounded-2xl text-xl shadow-xl active:scale-95 italic transition-all">אשר ושמור חבילה</button>
                 </div>
-            `;
-        }
-
-        function renderKeypadHtml() {
-            return `
-                <div class="grid grid-cols-3 gap-2">
-                    ${[1,2,3,4,5,6,7,8,9].map(n => `<button onclick="window.typeKey('${n}')" class="keypad-btn shadow-sm">${n}</button>`).join('')}
-                    <button onclick="window.clearKey()" class="keypad-btn bg-slate-100 text-xs font-bold shadow-sm">C</button>
-                    <button onclick="window.typeKey('0')" class="keypad-btn shadow-sm">0</button>
-                    <button onclick="window.backKey()" class="keypad-btn bg-slate-100 text-xl font-bold shadow-sm">🔙</button>
-                </div>
-            `;
-        }
-
-        function renderModalKeypad() {
-            const container = document.getElementById('modal-keypad-container');
-            if(!container) return;
-            container.innerHTML = `
-                ${[1,2,3,4,5,6,7,8,9].map(n => `<button onclick="window.typeKey('${n}')" class="keypad-btn shadow-sm h-12 text-lg">${n}</button>`).join('')}
-                <button onclick="window.clearKey()" class="keypad-btn bg-slate-100 text-xs font-bold h-12">C</button>
-                <button onclick="window.typeKey('0')" class="keypad-btn shadow-sm h-12 text-lg">0</button>
-                <button onclick="window.backKey()" class="keypad-btn bg-slate-100 text-xl h-12 font-bold">🔙</button>
-            `;
-        }
-
-        // --- Logic Handlers ---
-
-        window.selectBranch = (b) => { window.state.currentBranch = b.trim(); window.state.currentView = 'home'; const loader = document.getElementById('status-screen'); if (loader) loader.style.display = 'none'; window.render(); loadData(); };
-        window.setView = (v) => { window.state.currentView = v; window.state.typingValue = ''; window.state.searchResults = null; window.state.selectedOption = null; window.state.isEnteringControlDigits = false; window.render(); };
-        window.setOption = (opt) => { window.state.selectedOption = opt; window.render(); };
-        
-        window.typeKey = (k) => { 
-            if (window.state.isEnteringControlDigits) {
-                if (window.state.controlDigits.length < 3) {
-                    window.state.controlDigits += k;
-                    const display = document.getElementById('control-input-display');
-                    if (display) display.innerText = window.state.controlDigits.padEnd(3, '-');
-                }
-                return;
-            }
-            if(window.state.typingValue.length < 4) { 
-                window.state.typingValue += k; 
-                if(window.state.currentView === 'home') window.state.searchResults = null; 
-                window.render(); 
-            } 
-        };
-        
-        window.clearKey = () => { 
-            if (window.state.isEnteringControlDigits) { 
-                window.state.controlDigits = ''; 
-                const display = document.getElementById('control-input-display');
-                if (display) display.innerText = '---'; 
-                return; 
-            }
-            window.state.typingValue = ''; if(window.state.currentView==='home') window.state.searchResults=null; window.render(); 
-        };
-
-        window.backKey = () => { 
-            if (window.state.isEnteringControlDigits) { 
-                window.state.controlDigits = window.state.controlDigits.slice(0, -1); 
-                const display = document.getElementById('control-input-display');
-                if (display) display.innerText = window.state.controlDigits.padEnd(3, '-').replace(/ /g, '-'); 
-                return; 
-            }
-            window.state.typingValue = window.state.typingValue.slice(0, -1); window.render(); 
-        };
-
-        // פונקציית הקצאת מדף חכמה (15 חבילות למדף)
-        function findSmartShelf(supplier) {
-            const dedicated = SHELF_GROUPS[supplier];
-            const overflow = ["G", "H"];
-            const currentBranchPackages = window.state.allPackages.filter(p => p.branch === window.state.currentBranch);
-            
-            const getCount = (shelfName) => currentBranchPackages.filter(p => p.shelf === shelfName).length;
-
-            for (let shelf of dedicated) { if (getCount(shelf) < MAX_PER_SHELF) return shelf; }
-            for (let shelf of overflow) { if (getCount(shelf) < MAX_PER_SHELF) return shelf; }
-            return null;
-        }
-
-        window.savePackage = () => {
-            if (window.state.typingValue.length < 2 || !window.state.selectedOption) return;
-            const id = window.state.typingValue;
-            const loc = window.state.selectedOption;
-            
-            const isDuplicate = window.state.allPackages.some(p => 
-                (p.id === id || p.id.startsWith(id + "-")) && 
-                p.branch === window.state.currentBranch
             );
 
-            if (loc === 'בר הפצה' && id.length === 3 && isDuplicate) {
-                window.openControlDigitModal(id);
-                return;
-            }
+            // Layouts
+            if (!isInitialReady) return <div className="status-overlay bg-white h-screen w-full flex flex-col items-center justify-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div><p className="font-bold text-slate-700">טוען ממשק חבילות...</p></div>;
 
-            const targetShelf = findSmartShelf(loc);
-            if (!targetShelf) { showToast("אין מקום פנוי במדפים!", "error"); return; }
-
-            syncUpdateOptimistic('add', { id: id, shelf: targetShelf, supplier: loc });
-            window.setView('home');
-        };
-
-        window.openControlDigitModal = (id) => {
-            window.state.isEnteringControlDigits = true;
-            window.state.controlDigits = '';
-            window.state.originalIdForControl = id;
-            const displayId = document.getElementById('control-id-display');
-            if (displayId) displayId.innerText = `עבור חבילה ${id}`;
-            const displayInput = document.getElementById('control-input-display');
-            if (displayInput) displayInput.innerText = '---';
-            const modal = document.getElementById('control-modal-overlay');
-            if (modal) modal.style.display = 'flex';
-            renderModalKeypad();
-        };
-
-        window.confirmControlDigits = () => {
-            if (window.state.controlDigits.length !== 3) return;
-            const finalId = `${window.state.originalIdForControl}-${window.state.controlDigits}`;
-            const targetShelf = findSmartShelf('בר הפצה');
-            if (!targetShelf) { showToast("מחסן בר הפצה מלא!", "error"); return; }
-            syncUpdateOptimistic('add', { id: finalId, shelf: targetShelf, supplier: 'בר הפצה' });
-            window.closeControlModal();
-            window.setView('home');
-        };
-
-        window.closeControlModal = () => { window.state.isEnteringControlDigits = false; const modal = document.getElementById('control-modal-overlay'); if (modal) modal.style.display = 'none'; };
-
-        window.handleSearch = () => {
-            if (!window.state.typingValue) return;
-            const term = window.state.typingValue;
-            window.state.searchResults = window.state.allPackages.filter(p => 
-                p.id.includes(term) && p.branch === window.state.currentBranch
+            if (view === 'branch_select' || !currentBranch) return (
+                <div className="app-container flex flex-col items-center justify-center p-8 text-center bg-white">
+                    <div className="text-6xl mb-6 animate-bounce">🏢</div>
+                    <h1 className="text-3xl font-black mb-10 italic uppercase tracking-tighter">בחר סניף לעבודה</h1>
+                    <div className="w-full space-y-4">
+                        <button onClick={() => handleSelectBranch('רמתיים')} className="w-full py-6 bg-blue-600 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏡 סניף רמתיים</button>
+                        <button onClick={() => handleSelectBranch('סוקולוב')} className="w-full py-6 bg-slate-800 text-white rounded-[1.8rem] font-black text-xl shadow-lg active:scale-95 transition-all italic">🏢 סניף סוקולוב</button>
+                    </div>
+                </div>
             );
-            window.render();
-        };
 
-        window.deletePackage = (id, shelf) => { 
-            syncUpdateOptimistic('delete', { id, shelf }); 
-            if (window.state.searchResults) {
-                window.state.searchResults = window.state.searchResults.filter(p => !(p.id === id && p.shelf === shelf));
-                if (window.state.searchResults.length === 0) window.state.searchResults = null;
-            }
-            window.closeActionModal(); 
-        };
+            if (view === 'settings') return (
+                <div className="app-container p-6 text-right bg-white flex flex-col">
+                    <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-8 active:scale-90"><Icon name="back" size={20} className="rotate-180" /></button>
+                    <h2 className="text-2xl font-black mb-8 italic uppercase leading-none tracking-tighter">הגדרות מכשיר</h2>
+                    <div className="space-y-4 flex-1">
+                        <button onClick={() => setDeviceMode('1')} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '1' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
+                            <Icon name="smartphone" size={32} className={deviceMode === '1' ? "text-blue-600" : "text-slate-300"} />
+                            <div className="text-right">
+                                <p className="font-black text-lg leading-none">מכשיר 1 - ניהול</p>
+                                <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">הוספה, מחיקה וסנכרון</p>
+                            </div>
+                        </button>
+                        <button onClick={() => setDeviceMode('2')} className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${deviceMode === '2' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}>
+                            <Icon name="monitor" size={32} className={deviceMode === '2' ? "text-blue-600" : "text-slate-300"} />
+                            <div className="text-right">
+                                <p className="font-black text-lg leading-none">מכשיר 2 - תצוגה</p>
+                                <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest text-[9px]">מסך ענק עבור לקוחות</p>
+                            </div>
+                        </button>
+                    </div>
+                    <div className="p-6 bg-slate-50 rounded-[2.5rem] text-center border border-slate-100 mt-auto"><p className="text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-widest italic leading-none">גרסה פעילה</p><p className="text-sm font-black text-slate-800 italic uppercase">V8.7 Display Reset</p></div>
+                </div>
+            );
 
-        window.openActionModal = (id, shelf, supplier) => { 
-            const mid = document.getElementById('m-id-text');
-            const mloc = document.getElementById('m-loc-text');
-            const mo = document.getElementById('modal-overlay');
-            if(mid) mid.innerText = id; 
-            if(mloc) mloc.innerText = `סניף: ${window.state.currentBranch} | מדף ${shelf} | מבית ${supplier}`; 
-            if(mo) mo.style.display = 'flex'; 
-            const btn = document.getElementById('m-collect-btn');
-            if(btn) btn.onclick = () => window.deletePackage(id, shelf); 
-        };
-        window.closeActionModal = () => { const mo = document.getElementById('modal-overlay'); if (mo) mo.style.display = 'none'; };
+            if (view === 'add') return (
+                <div className="app-container p-6 text-right overflow-y-auto bg-white flex flex-col">
+                    <button onClick={() => setView('home')} className="self-end p-3 bg-slate-100 rounded-xl mb-4 active:scale-90"><Icon name="back" size={20} className="rotate-180" /></button>
+                    <div className="bg-blue-50 border-2 border-blue-100 rounded-[2.5rem] p-6 text-center mb-4 shadow-sm shrink-0">
+                        <p className="text-[10px] font-bold text-blue-400 uppercase mb-1 tracking-widest italic leading-none uppercase tracking-tighter">{isQuickAdd ? 'הוספה מהירה' : 'מספר חבילה'}</p>
+                        <p className="text-6xl font-black text-blue-700 tracking-tighter italic leading-none">{String(typingValue) || (isQuickAdd ? '... - ...' : '----')}</p>
+                    </div>
+                    <div className="mb-4 shrink-0 text-right"><p className="text-[9px] font-bold text-slate-400 uppercase mb-2 mr-2 tracking-widest font-black italic">בחר יעד אחסון:</p><div className="grid grid-cols-2 gap-2"><button onClick={() => setSelectedShelfType('standard')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'standard' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>מדף רגיל</button><button onClick={() => setSelectedShelfType('small')} className={`py-3.5 rounded-xl font-black ${selectedShelfType === 'small' ? 'bg-blue-600 text-white border-blue-700 shadow-md' : 'bg-white text-slate-500 border-slate-100 border-2'}`}>חבילות קטנות</button></div></div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-[1.8rem] p-3 mb-6 shadow-inner shrink-0 text-right"><Keypad btnClass="bg-white" /></div>
+                    <button onClick={handlePackageAdd} className="mt-auto w-full bg-blue-600 text-white font-black py-8 rounded-[2.2rem] text-3xl shadow-2xl active:scale-95 italic transition-all">אשר ושמור חבילה ✅</button>
+                </div>
+            );
 
-        function showToast(text, type = 'success') {
-            const t = document.createElement('div');
-            const bg = type === 'success' ? 'bg-slate-800' : 'bg-red-600';
-            t.className = `fixed top-10 left-1/2 -translate-x-1/2 ${bg} text-white px-8 py-3 rounded-full font-bold shadow-2xl z-[8000] text-sm transform transition-all duration-300 opacity-100`;
-            t.innerText = text;
-            document.body.appendChild(t);
-            setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translate(-50%, -20px)'; setTimeout(() => t.remove(), 300); }, 2500);
+            if (view === 'camera') return (
+                <div className="app-container p-6 text-right bg-white flex flex-col"><button onClick={() => { stopScanner(); setView('home'); }} className="self-end p-3 bg-slate-100 rounded-xl mb-4"><Icon name="x" size={20} /> ביטול</button><h2 className="text-xl font-black mb-4 italic uppercase leading-none text-right">סריקת ברקוד</h2><div id="reader"></div><div className="mt-6 p-6 bg-blue-50 border-2 border-blue-100 rounded-[2rem] text-center italic font-black text-5xl text-blue-800 tracking-tighter leading-none shadow-inner">{String(typingValue) || '---'}</div><p className="text-center text-[10px] text-slate-400 font-bold mt-auto tracking-widest italic uppercase">כוון למרכז המלבן</p></div>
+            );
+
+            return (
+                <div className={`app-container h-full w-full flex overflow-hidden ${deviceMode === '2' ? 'flex-row-reverse max-w-none' : 'flex-col'}`}>
+                    {/* Device 2: Display Panel */}
+                    {deviceMode === '2' && (
+                        <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center text-white border-r-8 border-slate-800 p-12 text-center animate-in fade-in duration-500 overflow-hidden">
+                            {displayState.id === '---' || displayState.id === '' ? (
+                                <div className="flex flex-col items-center animate-pulse">
+                                    <div className="w-48 h-48 bg-white/5 rounded-full flex items-center justify-center mb-10 border border-white/10 shadow-2xl"><Icon name="package" size={100} className="text-slate-600" /></div>
+                                    <h2 className="text-6xl font-black text-slate-500 uppercase tracking-tighter italic">ממתין לחבילה...</h2>
+                                    <p className="text-xl text-slate-600 mt-4 uppercase font-bold tracking-widest">הלקוח הבא, אנא המתן לתצוגה</p>
+                                </div>
+                            ) : (
+                                <div className="w-full flex flex-col items-center">
+                                    <div className="mb-10 text-8xl animate-bounce">📦</div>
+                                    <p className="text-4xl font-bold text-slate-500 uppercase tracking-widest mb-6 italic leading-none uppercase">נא לגשת למדף</p>
+                                    <div className="bg-white/5 border-4 border-white/10 p-16 rounded-[4rem] shadow-2xl backdrop-blur-md w-full max-w-4xl">
+                                        <h1 className="text-[14rem] font-black leading-none text-blue-500 tracking-tighter mb-4 italic uppercase">{String(displayState.shelf === 'חבילות קטנות' ? 'קטנות' : displayState.shelf)}</h1>
+                                        <div className="h-2 w-48 bg-slate-700 mx-auto rounded-full mb-8"></div>
+                                        <p className="text-[6rem] font-black text-white italic opacity-90 leading-none">#{String(displayState.id)}</p>
+                                    </div>
+                                    <div className="mt-16 flex items-center gap-4 text-slate-500 uppercase font-black tracking-widest italic leading-none transition-all"><Icon name="refresh" className="animate-spin" /> סנכרון Google Sheets פעיל</div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className={`${deviceMode === '2' ? 'w-[450px]' : 'w-full'} h-full border-l border-slate-200 shadow-2xl flex flex-col bg-white overflow-hidden`}>
+                        <ManagerUI />
+                    </div>
+
+                    {modalPackage && (
+                        <div className="fixed inset-0 bg-black/80 z-[6000] flex items-center justify-center p-6" onClick={closeActionModal}>
+                            <div className="bg-white rounded-[2.5rem] p-8 text-center w-full max-w-xs shadow-2xl animate-in zoom-in duration-200 text-right" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-[10px] font-bold text-slate-400 mb-2 uppercase italic tracking-widest leading-none italic uppercase">ניהול פריט מהיר</h3>
+                                <p className="text-blue-500 font-extrabold text-sm mb-1 uppercase italic text-center leading-none">מיקום: מדף {String(modalPackage.shelf)}</p>
+                                <p className="text-6xl font-black text-slate-900 mb-8 tracking-tighter leading-none italic text-center">{String(modalPackage.id)}</p>
+                                <div className="flex flex-col gap-3">
+                                    <button onClick={() => handlePackageDelete(modalPackage)} className="w-full bg-green-600 text-white font-black py-5 rounded-2xl shadow-lg active:scale-95 text-xl italic uppercase tracking-tighter leading-none transition-all">נאסף בהצלחה ✅</button>
+                                    <button onClick={closeActionModal} className="w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl active:scale-95 uppercase font-bold text-sm">ביטול וחזור</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
         }
 
-        // טעינה ראשונית
-        loadData();
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
     </script>
 </body>
 </html>
