@@ -165,13 +165,17 @@
 
             useEffect(() => { setTimeout(() => setIsInitialReady(true), 500); }, []);
 
+            // פונקציית רענון אולטרה-מהירה
             const loadData = async (silent = false) => {
-                if (!currentBranch || view === 'camera') return;
+                if (!currentBranch) return;
                 setIsSyncing(true);
                 try {
                     const response = await fetch(`${SHEET_URL}?nocache=${Date.now()}`);
                     const data = await response.json();
-                    setAllPackages(data.packages?.filter(p => p.branch === currentBranch) || []);
+                    
+                    const newPackages = data.packages?.filter(p => p.branch === currentBranch) || [];
+                    setAllPackages(newPackages);
+                    
                     if (data.settings) {
                         const newCaps = { ...shelfCapacities };
                         shelves.forEach(s => {
@@ -180,20 +184,32 @@
                         });
                         setShelfCapacities(newCaps);
                     }
+                    
                     if (data.displayStates && data.displayStates[currentBranch]) {
-                        setDisplayState({ id: String(data.displayStates[currentBranch].id || '---'), shelf: String(data.displayStates[currentBranch].shelf || '---') });
+                        setDisplayState({ 
+                            id: String(data.displayStates[currentBranch].id || '---'), 
+                            shelf: String(data.displayStates[currentBranch].shelf || '---') 
+                        });
                     }
                 } catch (e) {}
                 setIsSyncing(false);
             };
 
-            useEffect(() => { if (currentBranch) loadData(); }, [currentBranch, view]);
+            // טיימר רענון קבוע כל 3 שניות - עובד תמיד
+            useEffect(() => {
+                if (currentBranch) {
+                    loadData(false);
+                    const interval = setInterval(() => loadData(true), 3000);
+                    return () => clearInterval(interval);
+                }
+            }, [currentBranch]);
 
             const apiCall = async (params) => {
                 setIsSyncing(true);
                 try {
                     await fetch(SHEET_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ ...params, branch: currentBranch }) });
-                    setTimeout(loadData, 1500);
+                    // רענון מיידי אחרי פעולה
+                    setTimeout(() => loadData(true), 800);
                 } catch (e) { setIsSyncing(false); }
             };
 
@@ -237,7 +253,7 @@
                         <div className="flex items-center gap-1.5">
                             <button onClick={() => setView('settings')} className="p-2 bg-slate-100 rounded-xl active:scale-90 shadow-sm"><Icon name="settings" size={18} /></button>
                             {deviceMode === '2' && (
-                                <button onClick={() => setIsManagerVisible(false)} className="p-2 bg-slate-100 rounded-xl active:scale-90 shadow-sm border border-slate-200"><Icon name="eyeOff" size={18} className="text-slate-500" /></button>
+                                <button onClick={() => setIsManagerVisible(false)} className="p-2 bg-slate-100 rounded-xl active:scale-90 shadow-sm border border-slate-200 text-slate-500"><Icon name="eyeOff" size={18} /></button>
                             )}
                         </div>
                         <div className="bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-2xl flex items-center gap-2 shadow-inner">
@@ -383,7 +399,7 @@
 
             return (
                 <div className="w-full h-full flex overflow-hidden flex-row">
-                    {/* פאנל ניהול בצד ימין (הוחלף הצד) */}
+                    {/* פאנל ניהול בצד ימין */}
                     <div className={`${deviceMode === '2' ? (isManagerVisible ? 'w-[450px]' : 'w-0 overflow-hidden') : 'w-full'} h-full transition-all duration-300 flex items-center justify-center rtl border-l border-slate-200`}>
                         <div className="app-container shadow-2xl">
                             <ManagerUI />
@@ -405,7 +421,7 @@
                                 </div>
                             ) : (
                                 <div className="w-full flex flex-col items-center animate-in zoom-in duration-300">
-                                    <p className="text-4xl font-bold text-slate-500 mb-6 uppercase italic">נא לגשת למדף</p>
+                                    <p className="text-4xl font-bold text-slate-500 mb-6 italic uppercase leading-none">נא לגשת למדף</p>
                                     <div className="bg-white/5 border-4 border-white/10 p-16 rounded-[4rem] shadow-2xl backdrop-blur-md w-full max-w-4xl">
                                         <h1 className="text-[12rem] font-black leading-none text-blue-500 uppercase italic leading-none">{String(displayState.shelf === 'חבילות קטנות' ? 'קטנות' : displayState.shelf)}</h1>
                                         <p className="text-[5rem] font-black text-white italic opacity-90 mt-4 leading-none">#{displayState.id}</p>
