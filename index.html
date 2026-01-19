@@ -165,17 +165,13 @@
 
             useEffect(() => { setTimeout(() => setIsInitialReady(true), 500); }, []);
 
-            // פונקציית רענון אולטרה-מהירה
             const loadData = async (silent = false) => {
                 if (!currentBranch) return;
                 setIsSyncing(true);
                 try {
                     const response = await fetch(`${SHEET_URL}?nocache=${Date.now()}`);
                     const data = await response.json();
-                    
-                    const newPackages = data.packages?.filter(p => p.branch === currentBranch) || [];
-                    setAllPackages(newPackages);
-                    
+                    setAllPackages(data.packages?.filter(p => p.branch === currentBranch) || []);
                     if (data.settings) {
                         const newCaps = { ...shelfCapacities };
                         shelves.forEach(s => {
@@ -184,18 +180,13 @@
                         });
                         setShelfCapacities(newCaps);
                     }
-                    
                     if (data.displayStates && data.displayStates[currentBranch]) {
-                        setDisplayState({ 
-                            id: String(data.displayStates[currentBranch].id || '---'), 
-                            shelf: String(data.displayStates[currentBranch].shelf || '---') 
-                        });
+                        setDisplayState({ id: String(data.displayStates[currentBranch].id || '---'), shelf: String(data.displayStates[currentBranch].shelf || '---') });
                     }
                 } catch (e) {}
                 setIsSyncing(false);
             };
 
-            // טיימר רענון קבוע כל 3 שניות - עובד תמיד
             useEffect(() => {
                 if (currentBranch) {
                     loadData(false);
@@ -208,7 +199,6 @@
                 setIsSyncing(true);
                 try {
                     await fetch(SHEET_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ ...params, branch: currentBranch }) });
-                    // רענון מיידי אחרי פעולה
                     setTimeout(() => loadData(true), 800);
                 } catch (e) { setIsSyncing(false); }
             };
@@ -234,18 +224,16 @@
                 }, 300);
             };
 
-            const handlePackageAdd = () => {
-                const clean = typingValue.replace('-', '');
-                if (clean.length !== 6 || allPackages.some(p => p.id.replace('-', '') === clean)) return;
-                let targetShelf = selectedShelfType === 'small' ? "חבילות קטנות" : (manualShelf || shelves.find(s => allPackages.filter(p => p.shelf === s).length < (shelfCapacities[s] || 5)) || "חבילות קטנות");
-                apiCall({ action: 'add', id: typingValue, shelf: targetShelf });
-                setTypingValue(''); setManualShelf(''); setView('home');
+            const handleMoveShelf = (targetShelf) => {
+                if (!modalPackage) return;
+                apiCall({ 
+                    action: 'move', 
+                    id: modalPackage.id, 
+                    oldShelf: modalPackage.shelf, 
+                    newShelf: targetShelf 
+                });
+                setModalPackage(null);
             };
-
-            const onShelfButtonTouchStart = () => {
-                longPressTimer.current = setTimeout(() => { setShowManualShelfSelect(true); }, 600);
-            };
-            const onShelfButtonTouchEnd = () => { clearTimeout(longPressTimer.current); };
 
             const ManagerUI = () => (
                 <div className="flex flex-col h-full bg-white relative px-4 text-right overflow-hidden">
@@ -327,7 +315,7 @@
                 return (
                     <div className="app-container p-6 text-right">
                         <div className="flex justify-between items-center mb-4">
-                            <button onClick={() => { if(isFormComplete && !isDuplicate) handlePackageAdd(); }} disabled={!isFormComplete || isDuplicate} className={`p-3 rounded-xl transition-all ${isFormComplete && !isDuplicate ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-300'}`}><Icon name="check" size={24} /></button>
+                            <button onClick={() => { if(isFormComplete && !isDuplicate) { apiCall({action:'add', id:typingValue, shelf: selectedShelfType === 'small' ? "חבילות קטנות" : (manualShelf || shelves.find(s => allPackages.filter(p => p.shelf === s).length < (shelfCapacities[s] || 5)) || "חבילות קטנות")}); setTypingValue(''); setView('home'); } }} disabled={!isFormComplete || isDuplicate} className={`p-3 rounded-xl transition-all ${isFormComplete && !isDuplicate ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-100 text-slate-300'}`}><Icon name="check" size={24} /></button>
                             <button onClick={() => {setTypingValue(''); setManualShelf(''); setView('home');}} className="p-3 bg-slate-100 rounded-xl active:scale-90 transition-all"><Icon name="back" className="rotate-180" /></button>
                         </div>
                         <div className={`border-2 rounded-[2.5rem] p-6 text-center mb-4 ${isDuplicate ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-100'}`}>
@@ -336,7 +324,7 @@
                         </div>
                         <div className="mb-4 grid grid-cols-2 gap-2">
                             <div className="relative">
-                                <button onMouseDown={onShelfButtonTouchStart} onMouseUp={onShelfButtonTouchEnd} onTouchStart={onShelfButtonTouchStart} onTouchEnd={onShelfButtonTouchEnd} onClick={() => {if(!showManualShelfSelect){setSelectedShelfType('standard'); setManualShelf('');}}} className={`w-full py-3.5 rounded-xl font-black transition-all ${selectedShelfType === 'standard' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border-2 border-slate-100 text-slate-400'}`}>{manualShelf ? `מדף ${manualShelf}` : 'מדף רגיל'}</button>
+                                <button onMouseDown={() => longPressTimer.current = setTimeout(()=>setShowManualShelfSelect(true), 600)} onMouseUp={()=>clearTimeout(longPressTimer.current)} onTouchStart={() => longPressTimer.current = setTimeout(()=>setShowManualShelfSelect(true), 600)} onTouchEnd={()=>clearTimeout(longPressTimer.current)} onClick={() => {if(!showManualShelfSelect){setSelectedShelfType('standard'); setManualShelf('');}}} className={`w-full py-3.5 rounded-xl font-black transition-all ${selectedShelfType === 'standard' ? 'bg-blue-600 text-white shadow-md' : 'bg-white border-2 border-slate-100 text-slate-400'}`}>{manualShelf ? `מדף ${manualShelf}` : 'מדף רגיל'}</button>
                                 {showManualShelfSelect && (
                                     <div className="absolute top-0 left-0 w-full z-50 bg-white border-2 border-blue-600 rounded-xl p-2 grid grid-cols-4 gap-1 shadow-2xl animate-in zoom-in duration-200">
                                         {shelves.map(s => (<button key={s} onClick={() => {setManualShelf(s); setShowManualShelfSelect(false);}} className="aspect-square bg-slate-50 border rounded font-bold text-blue-600 shadow-sm">{s}</button>))}
@@ -359,7 +347,7 @@
                                 }} className="bg-white py-4 rounded-2xl shadow-sm font-black text-xl active:bg-blue-50 transition-all">{k}</button>
                             ))}
                         </div>
-                        <button onClick={handlePackageAdd} disabled={!isFormComplete || isDuplicate} className={`mt-auto w-full font-black py-7 rounded-[2.2rem] text-3xl shadow-xl transition-all ${isFormComplete && !isDuplicate ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>אשר ושמור ✅</button>
+                        <button onClick={() => { if(isFormComplete && !isDuplicate) { apiCall({action:'add', id:typingValue, shelf: selectedShelfType === 'small' ? "חבילות קטנות" : (manualShelf || shelves.find(s => allPackages.filter(p => p.shelf === s).length < (shelfCapacities[s] || 5)) || "חבילות קטנות")}); setTypingValue(''); setView('home'); } }} disabled={!isFormComplete || isDuplicate} className={`mt-auto w-full font-black py-7 rounded-[2.2rem] text-3xl shadow-xl transition-all ${isFormComplete && !isDuplicate ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-400'}`}>אשר ושמור ✅</button>
                     </div>
                 );
             }
@@ -399,14 +387,12 @@
 
             return (
                 <div className="w-full h-full flex overflow-hidden flex-row">
-                    {/* פאנל ניהול בצד ימין */}
                     <div className={`${deviceMode === '2' ? (isManagerVisible ? 'w-[450px]' : 'w-0 overflow-hidden') : 'w-full'} h-full transition-all duration-300 flex items-center justify-center rtl border-l border-slate-200`}>
                         <div className="app-container shadow-2xl">
                             <ManagerUI />
                         </div>
                     </div>
 
-                    {/* מסך ההמתנה בצד שמאל */}
                     {deviceMode === '2' && (
                         <div className="flex-1 bg-slate-900 flex flex-col items-center justify-center text-white p-12 text-center relative overflow-hidden h-full ltr">
                             {!isManagerVisible && (
@@ -421,7 +407,7 @@
                                 </div>
                             ) : (
                                 <div className="w-full flex flex-col items-center animate-in zoom-in duration-300">
-                                    <p className="text-4xl font-bold text-slate-500 mb-6 italic uppercase leading-none">נא לגשת למדף</p>
+                                    <p className="text-4xl font-bold text-slate-500 mb-6 uppercase italic">נא לגשת למדף</p>
                                     <div className="bg-white/5 border-4 border-white/10 p-16 rounded-[4rem] shadow-2xl backdrop-blur-md w-full max-w-4xl">
                                         <h1 className="text-[12rem] font-black leading-none text-blue-500 uppercase italic leading-none">{String(displayState.shelf === 'חבילות קטנות' ? 'קטנות' : displayState.shelf)}</h1>
                                         <p className="text-[5rem] font-black text-white italic opacity-90 mt-4 leading-none">#{displayState.id}</p>
@@ -443,14 +429,14 @@
                                             const count = allPackages.filter(p => p.shelf === s).length;
                                             const cap = shelfCapacities[s] || 5;
                                             const isFull = count >= cap && modalPackage.shelf !== s;
-                                            return (<button key={`md-${s}`} disabled={isFull} onClick={() => apiCall({ action: 'move', id: modalPackage.id, oldShelf: modalPackage.shelf, newShelf: s })} className={`move-shelf-btn ${isFull ? 'bg-red-100 border-red-200 text-red-600 opacity-80' : modalPackage.shelf === s ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm' : ''}`}>{s}<br/><span className={`text-[7px] ${isFull ? 'text-red-500' : ''}`}>({count}/{cap})</span></button>);
+                                            return (<button key={`md-${s}`} disabled={isFull} onClick={() => handleMoveShelf(s)} className={`move-shelf-btn ${isFull ? 'bg-red-100 border-red-200 text-red-600 opacity-80' : modalPackage.shelf === s ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm' : ''}`}>{s}<br/><span className={`text-[7px] ${isFull ? 'text-red-500' : ''}`}>({count}/{cap})</span></button>);
                                         })}
                                     </div>
-                                    <button onClick={() => apiCall({ action: 'move', id: modalPackage.id, oldShelf: modalPackage.shelf, newShelf: 'חבילות קטנות' })} className="w-full move-shelf-btn py-3 bg-white border-2 rounded-2xl font-black text-blue-600 active:bg-slate-50 transition-all uppercase italic">📦 העברה לקטנות</button>
+                                    <button onClick={() => handleMoveShelf('חבילות קטנות')} className="w-full move-shelf-btn py-3 bg-white border-2 rounded-2xl font-black text-blue-600 active:bg-slate-50 transition-all uppercase italic">📦 העברה לקטנות</button>
                                 </div>
                                 <div className="flex flex-col gap-3">
                                     <button onClick={() => {apiCall({action:'delete', id:modalPackage.id, shelf:modalPackage.shelf}); apiCall({action:'updateDisplay', id:'---', shelf:'---'}); setModalPackage(null);}} className="w-full bg-emerald-600 text-white py-5 rounded-2xl text-xl shadow-lg font-black uppercase italic transition-all active:scale-95">נאסף בהצלחה ✅</button>
-                                    <button onClick={() => {apiCall({action:'updateDisplay', id:'---', shelf:'---'}); setModalPackage(null);}} className="mt-4 w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl text-sm italic uppercase leading-none shadow-sm transition-all active:scale-95">ביטול ואיפוס תצוגה</button>
+                                    <button onClick={() => {setDisplayState({id:'---', shelf:'---'}); apiCall({action:'updateDisplay', id:'---', shelf:'---'}); setModalPackage(null);}} className="mt-4 w-full bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl text-sm italic uppercase leading-none shadow-sm transition-all active:scale-95">ביטול ואיפוס תצוגה</button>
                                 </div>
                             </div>
                         </div>
