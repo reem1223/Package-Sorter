@@ -226,12 +226,7 @@
 
             const handleMoveShelf = (targetShelf) => {
                 if (!modalPackage) return;
-                apiCall({ 
-                    action: 'move', 
-                    id: modalPackage.id, 
-                    oldShelf: modalPackage.shelf, 
-                    newShelf: targetShelf 
-                });
+                apiCall({ action: 'move', id: modalPackage.id, oldShelf: modalPackage.shelf, newShelf: targetShelf });
                 setModalPackage(null);
             };
 
@@ -363,24 +358,35 @@
             );
 
             if (view === 'settings') return (
-                <div className="app-container p-6 text-right">
-                    <div className="flex justify-between items-center mb-6">
+                <div className="app-container bg-white flex flex-col h-full text-right overflow-hidden">
+                    <div className="p-6 shrink-0 flex justify-between items-center border-b">
                         <h2 className="text-2xl font-black italic">הגדרות</h2>
                         <button onClick={() => setView('home')} className="p-3 bg-slate-100 rounded-xl active:scale-90 shadow-sm"><Icon name="back" className="rotate-180" /></button>
                     </div>
-                    <div className="space-y-4">
-                        <button onClick={() => {setDeviceMode('1'); setView('home');}} className={`w-full p-6 rounded-3xl border-2 transition-all ${deviceMode === '1' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}><p className="font-black text-lg">מנהל (1)</p></button>
-                        <button onClick={() => {setDeviceMode('2'); setView('home');}} className={`w-full p-6 rounded-3xl border-2 transition-all ${deviceMode === '2' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}><p className="font-black text-lg">תצוגה (2)</p></button>
+                    {/* כאן הוספתי את ה-overflow-y-auto שמאפשר גלילה */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        <div className="space-y-4">
+                            <button onClick={() => {setDeviceMode('1'); setView('home');}} className={`w-full p-6 rounded-3xl border-2 transition-all ${deviceMode === '1' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}><p className="font-black text-lg text-right">מנהל (1)</p></button>
+                            <button onClick={() => {setDeviceMode('2'); setView('home');}} className={`w-full p-6 rounded-3xl border-2 transition-all ${deviceMode === '2' ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100'}`}><p className="font-black text-lg text-right">תצוגה (2)</p></button>
+                        </div>
                         <div className="mt-6 border-t pt-6">
                             <p className="text-xs font-bold text-slate-400 mb-4 uppercase italic tracking-widest">קיבולת מדפים:</p>
                             {shelves.map(s => (
                                 <div key={`cap-${s}`} className="capacity-slider-row shadow-sm">
                                     <div className="flex justify-between items-center text-right"><span className="bg-blue-600 text-white px-3 py-0.5 rounded-full text-xs font-black shadow-sm">מדף {s}</span><span className="font-black text-blue-800">{shelfCapacities[s] || 5}</span></div>
-                                    <input type="range" min="1" max="10" value={shelfCapacities[s] || 5} onChange={(e) => apiCall({action:'updateSettings', key:`${currentBranch}_cap_${s}`, value:parseInt(e.target.value)})} className="w-full accent-blue-600" />
+                                    <input 
+                                        type="range" min="1" max="10" 
+                                        value={shelfCapacities[s] || 5} 
+                                        onChange={(e) => setShelfCapacities(prev => ({...prev, [s]: parseInt(e.target.value)}))}
+                                        onMouseUp={(e) => apiCall({action:'updateSettings', key:`${currentBranch}_cap_${s}`, value:parseInt(e.target.value)})}
+                                        onTouchEnd={(e) => apiCall({action:'updateSettings', key:`${currentBranch}_cap_${s}`, value:parseInt(e.target.value)})}
+                                        className="w-full accent-blue-600" 
+                                    />
                                 </div>
                             ))}
                         </div>
-                        <button onClick={() => setCurrentBranch(null)} className="w-full p-4 bg-slate-900 text-white rounded-2xl font-bold shadow-md active:scale-95 transition-all">החלף סניף</button>
+                        <button onClick={() => setCurrentBranch(null)} className="w-full p-6 bg-slate-900 text-white rounded-3xl font-bold shadow-md active:scale-95 transition-all text-lg mt-4">החלף סניף</button>
+                        <div className="h-10"></div> {/* רווח קטן בסוף הגלילה */}
                     </div>
                 </div>
             );
